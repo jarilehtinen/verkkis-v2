@@ -108,7 +108,7 @@ def main
                     title ||= product['name']
 
                     # Product price
-                    price = product['price'].round
+                    price = product['price']
 
                     # Price text
                     price_text = "#{price} €"
@@ -166,7 +166,11 @@ def main
                     # Product price
                     win.attron(Curses.color_pair(color)) do
                         win.setpos(y, price_col_start)
-                        win.addstr(price_text.rjust(20))
+
+                        # Replace dots to commas in price text
+                        price_text = price_text.gsub(".", ",")
+
+                        win.addstr(price_text.to_s.rjust(20))
                     end
                 end
             end
