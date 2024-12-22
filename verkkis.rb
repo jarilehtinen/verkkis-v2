@@ -353,7 +353,7 @@ def main
             # Display product information when enter pressed
             when "i", 10, Curses::Key::RIGHT
                 Curses.flushinp
-                product = products[current_product + 1]
+                product = products[current_product]
                 ui.title(product['name'])
                 Curses.refresh
 
@@ -417,7 +417,7 @@ def main
 
             # Favorite item
             when "."
-                product = products[current_product + 1]
+                product = products[current_product]
                 favorites.favorite_product(product['id'])
                 ui.draw
 
