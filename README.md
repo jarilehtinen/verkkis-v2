@@ -9,3 +9,15 @@ Huom! Tein tämän projektin opetellakseni Ruby-ohjelmointia, ja siltä se kielt
 ```shell
 gem install curses launchy
 ```
+
+## Käyttäminen
+
+```shell
+ruby verkkis.rb
+````
+
+## Lisää alias .bashrc, .zshrc tms.
+
+```shell
+alias verkkis="ruby [POLKU]/verkkis.rb"
+```
