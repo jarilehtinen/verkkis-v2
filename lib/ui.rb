@@ -66,7 +66,7 @@ module Verkkis
                 h: "Hinta",
                 s: "Suosikit",
                 ".": "Suosikki",
-                i: "Tuotetiedot",
+                o: "Avaa selaimeen",
                 p: "Päivitä"
             }
 
