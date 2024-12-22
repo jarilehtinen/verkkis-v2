@@ -445,7 +445,7 @@ def main
 
             # Open product page in browser
             when "o"
-                product = products[current_product + 1]
+                product = products[current_product]
                 Launchy.open("https://www.verkkokauppa.com/fi/outlet/yksittaiskappaleet/#{product['id']}")
 
             # Escape
