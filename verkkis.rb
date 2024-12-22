@@ -84,7 +84,7 @@ def main
 
             # Text widths/positions
             title_col_width = Config.max_cols - 12
-            price_col_start = title_col_width - 13
+            price_col_start = title_col_width - 11
 
             # No products
             if products.empty?
