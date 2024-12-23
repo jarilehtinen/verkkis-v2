@@ -1,9 +1,8 @@
 module Verkkis
     class ProductInfo
         def view(ui, product)
-            Curses.flushinp
+            ui.draw
             ui.title(product['name'])
-            Curses.refresh
 
             win = Curses::Window.new(Config.max_lines - Config.ui_bottom_lines - 1, Config.max_cols - 3, 1, 1)
             win.erase

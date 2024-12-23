@@ -210,7 +210,6 @@ def main
 
                 # Sort by name
                 when "a"
-                    Curses.clrtoeol
                     ui.draw
 
                     if show == "name"
@@ -233,7 +232,6 @@ def main
 
                 # Sort by price
                 when "h"
-                    Curses.clrtoeol
                     ui.draw
 
                     if show == "price"
@@ -257,7 +255,6 @@ def main
 
                 # Sort by added
                 when "u"
-                    Curses.clrtoeol
                     ui.draw
 
                     if show == "added"
@@ -279,8 +276,6 @@ def main
 
                 # Display products based on saved searches
                 when "l"
-                    Curses.setpos(Config.max_lines - 1, 0)
-                    Curses.clrtoeol
                     ui.draw
 
                     search = Verkkis::Searches.new
@@ -303,6 +298,7 @@ def main
 
                 # Search
                 when "e"
+                    # Clear last line
                     Curses.setpos(Config.max_lines - 1, 0)
                     Curses.clrtoeol
 
@@ -372,8 +368,6 @@ def main
 
                 # Show favorites
                 when "s"
-                    Curses.setpos(Config.max_lines - 1, 0)
-                    Curses.clrtoeol
                     ui.draw
 
                     favorite_products = favorites.get_favorites
