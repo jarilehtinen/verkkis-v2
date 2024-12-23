@@ -6,6 +6,8 @@ require_relative 'lib/data'
 require_relative 'lib/favorites'
 require_relative 'lib/searches'
 require_relative 'lib/ui'
+require_relative 'lib/manufacturers'
+require_relative 'lib/productinfo'
 
 def main
     # Activate alternate screen
@@ -179,292 +181,228 @@ def main
 
             # Handle keypresses
             case Curses.getch
+                when Curses::Key::UP
+                    if selection_position == 0 && start_row > 0
+                        start_row -= 1
+                        current_product -= 1
+                    elsif selection_position > 0
+                        selection_position -= 1
+                        current_product -= 1
+                    end
 
-            when Curses::Key::UP
-                if selection_position == 0 && start_row > 0
-                    start_row -= 1
-                    current_product -= 1
-                elsif selection_position > 0
-                    selection_position -= 1
-                    current_product -= 1
-                end
+                when Curses::Key::DOWN
+                    if selection_position == max_products - 1 && start_row + max_products < products.length
+                        start_row += 1
+                        current_product += 1
+                    elsif selection_position < max_products - 1
+                        selection_position += 1
+                        current_product += 1
+                    end
 
-            when Curses::Key::DOWN
-                if selection_position == max_products - 1 && start_row + max_products < products.length
-                    start_row += 1
-                    current_product += 1
-                elsif selection_position < max_products - 1
-                    selection_position += 1
-                    current_product += 1
-                end
+                when Curses::Key::HOME
+                    start_row = 0
 
-            when Curses::Key::HOME
-                start_row = 0
+                when Curses::Key::NPAGE
+                    start_row -= max_products
 
-            when Curses::Key::NPAGE
-                start_row -= max_products
-
-            when Curses::Key::NPAGE
-                start_row += max_products
-
-            # Sort by name
-            when "a"
-                Curses.clrtoeol
-                ui.draw
-
-                if show == "name"
-                    order = (order == "asc") ? "desc" : "asc"
-                else
-                    order = "asc"
-                end
-
-                show = "name"
-                products = original_products
-                products.sort_by! { |product| product['name'] }
-
-                if order == "desc"
-                    products.reverse!
-                end
-
-                start_row = 0
-                selection_position = 0
-                current_product = 0
-
-            # Sort by price
-            when "h"
-                Curses.clrtoeol
-                ui.draw
-
-                if show == "price"
-                    order = (order == "asc") ? "desc" : "asc"
-                else
-                    order = "asc"
-                end
-
-                show = "price"
-                products = original_products
-                products.sort_by! { |product| product['price'] }
-
-                if order == "desc"
-                    products.reverse!
-                end
-
-                start_row = 0
-                selection_position = 0
-                current_product = 0
-                show = "asc"
-
-            # Sort by added
-            when "u"
-                Curses.clrtoeol
-                ui.draw
-
-                if show == "added"
-                    order = (order == "asc") ? "desc" : "asc"
-                else
-                    order = "asc"
-                end
-
-                show = "added"
-                products = original_products
-
-                if order == "desc"
-                    products.reverse!
-                end
-
-                start_row = 0
-                selection_position = 0
-                current_product = 0
-
-            # Display products based on saved searches
-            when "l"
-                Curses.setpos(Config.max_lines - 1, 0)
-                Curses.clrtoeol
-                ui.draw
-
-                search = Verkkis::Searches.new
-                searches = search.get_searches
-
-                # List all products having name matching the search term
-                products = original_products.select { |product| searches.any? { |search| product['name'].downcase.include?(search.downcase) } }
+                when Curses::Key::NPAGE
+                    start_row += max_products
 
                 # Sort by name
-                products.sort_by! { |product| product['name'] }
+                when "a"
+                    Curses.clrtoeol
+                    ui.draw
 
-                start_row = 0
-                selection_position = 0
-                current_product = 0
-
-            # List saved searches on window
-            when "z"
-                Curses.setpos(Config.max_lines - 1, 0)
-                Curses.clrtoeol
-                ui.draw
-
-                search = Verkkis::Searches.new
-                searches = search.get_searches
-
-                ui.title("Tallennetut haut")
-
-                if searches
-                    searches.each_with_index do |search_term, i|
-                        win.setpos(i, 1)
-                        win.addstr("#{i + 1}. #{search_term}")
+                    if show == "name"
+                        order = (order == "asc") ? "desc" : "asc"
+                    else
+                        order = "asc"
                     end
-                end
 
-                win.refresh
+                    show = "name"
+                    products = original_products
+                    products.sort_by! { |product| product['name'] }
 
-                key = win.getch
+                    if order == "desc"
+                        products.reverse!
+                    end
 
-                if key =~ /\d/
-                    index = key.to_i - 1
-                    if index >= 0 && index < searches.length
-                        search.delete_search(searches[index])
+                    start_row = 0
+                    selection_position = 0
+                    current_product = 0
+
+                # Sort by price
+                when "h"
+                    Curses.clrtoeol
+                    ui.draw
+
+                    if show == "price"
+                        order = (order == "asc") ? "desc" : "asc"
+                    else
+                        order = "asc"
+                    end
+
+                    show = "price"
+                    products = original_products
+                    products.sort_by! { |product| product['price'] }
+
+                    if order == "desc"
+                        products.reverse!
+                    end
+
+                    start_row = 0
+                    selection_position = 0
+                    current_product = 0
+                    show = "asc"
+
+                # Sort by added
+                when "u"
+                    Curses.clrtoeol
+                    ui.draw
+
+                    if show == "added"
+                        order = (order == "asc") ? "desc" : "asc"
+                    else
+                        order = "asc"
+                    end
+
+                    show = "added"
+                    products = original_products
+
+                    if order == "desc"
+                        products.reverse!
+                    end
+
+                    start_row = 0
+                    selection_position = 0
+                    current_product = 0
+
+                # Display products based on saved searches
+                when "l"
+                    Curses.setpos(Config.max_lines - 1, 0)
+                    Curses.clrtoeol
+                    ui.draw
+
+                    search = Verkkis::Searches.new
+                    searches = search.get_searches
+
+                    # List all products having name matching the search term
+                    products = original_products.select { |product| searches.any? { |search| product['name'].downcase.include?(search.downcase) } }
+
+                    # Sort by name
+                    products.sort_by! { |product| product['name'] }
+
+                    start_row = 0
+                    selection_position = 0
+                    current_product = 0
+
+                # List saved searches on window
+                when "z"
+                    searches = Verkkis::Searches.new
+                    searches = searches.list(ui)
+
+                # Search
+                when "e"
+                    Curses.setpos(Config.max_lines - 1, 0)
+                    Curses.clrtoeol
+
+                    Curses.flushinp
+                    Curses.refresh
+
+                    Curses.setpos(Config.max_lines - 1, 1)
+                    Curses.addstr("Etsi: ")
+
+                    # Read search term
+                    search_term = Curses.getstr
+
+                    if search_term.length > 0
+                        products = original_products.select { |product| product['name'].downcase.include?(search_term.downcase) }
+                        ui.draw
+                    else
+                        # Reset
+                        products = original_products
                         ui.draw
                     end
-                end
 
-            # Search
-            when "e"
-                Curses.setpos(Config.max_lines - 1, 0)
-                Curses.clrtoeol
+                    ui.title("Etsi: " + search_term)
 
-                Curses.flushinp
-                Curses.refresh
+                    start_row = 0
+                    selection_position = 0
+                    current_product = 0
 
-                Curses.setpos(Config.max_lines - 1, 1)
-                Curses.addstr("Etsi: ")
+                # Display product information when enter pressed
+                when "i", 10, Curses::Key::RIGHT
+                    product_info = Verkkis::ProductInfo.new
+                    product_info.view(ui, products[current_product])
 
-                # Read search term
-                search_term = Curses.getstr
+                # List manufacturers when pressing "v"
+                # Work in progress
+                when "v"
+                    manufacturers = Verkkis::Manufacturers.new
+                    manufacturers.list(ui, products)
 
-                if search_term.length > 0
-                    products = original_products.select { |product| product['name'].downcase.include?(search_term.downcase) }
+                # Update products
+                when "p", Curses::Key::F5
+                    data = Verkkis::Data.new
+                    data.update_data
+
+                    # Load updated products
+                    products = data.get_products
+
+                    # Get updated price history data in data @price_history
+                    data.get_price_history
+
                     ui.draw
-                else
-                    # Reset
+
+                    start_row = 0
+                    selection_position = 0
+                    current_product = 0
+
+                # Favorite item
+                when "."
+                    product = products[current_product]
+                    favorites.favorite_product(product['id'])
+                    ui.draw
+
+                # Save search
+                when "t"
+                    search = Verkkis::Searches.new
+                    search.save_search(search_term)
+                    ui.draw
+
+                # Show favorites
+                when "s"
+                    Curses.setpos(Config.max_lines - 1, 0)
+                    Curses.clrtoeol
+                    ui.draw
+
+                    favorite_products = favorites.get_favorites
                     products = original_products
-                    ui.draw
-                end
+                    products = products.select { |product| favorite_products.include?(product['id']) }
 
-                ui.title("Etsi: " + search_term)
+                    show = "favorites"
 
-                start_row = 0
-                selection_position = 0
-                current_product = 0
+                    start_row = 0
+                    selection_position = 0
+                    current_product = 0
 
-            # Display product information when enter pressed
-            when "i", 10, Curses::Key::RIGHT
-                Curses.flushinp
-                product = products[current_product]
-                ui.title(product['name'])
-                Curses.refresh
+                # Open product page in browser
+                when "o"
+                    product = products[current_product]
+                    Launchy.open("https://www.verkkokauppa.com/fi/outlet/yksittaiskappaleet/#{product['id']}")
 
-                loop do
-                    win.erase
+                # Escape
+                when 27
+                    Curses.flushinp
+                    products = original_products
+                    Curses.refresh
 
-                    win.attron(Curses.color_pair(5) | Curses::A_BOLD) do
-                        win.setpos(1, 3)
-                        win.addstr("#{product['name']}")
-                    end
+                    start_row = 0
+                    selection_position = 0
+                    current_product = 0
 
-                    win.attron(Curses.color_pair(5)) do
-                        win.setpos(3, 3)
-                        win.addstr("#{product['description']}")
-                        win.setpos(5, 3)
-                        text = "Hinta:  #{product['price']} €"
-
-                        if product['original_price']
-                            text += " (#{product['original_price']} €)"
-                        end
-
-                        win.addstr(text)
-                        win.setpos(6, 3)
-                        win.addstr("Kunto:  #{product['condition']}")
-                    end
-
-                    win.attron(Curses.color_pair(6)) do
-                        win.setpos(9, 3)
-                        win.addstr("https://www.verkkokauppa.com/fi/outlet/yksittaiskappaleet/#{product['id']}")
-                    end
-
-                    win.refresh
-
-                    key = win.getch
-
-                    if key == "o"
-                        Launchy.open("https://www.verkkokauppa.com/fi/outlet/yksittaiskappaleet/#{product['id']}")
-                    elsif key == "q" || key == 27 || key == Curses::Key::LEFT
-                        break
-                    end
-                end
-
-                ui.draw
-
-            # Update products
-            when "p", Curses::Key::F5
-                data = Verkkis::Data.new
-                data.update_data
-
-                # Load updated products
-                products = data.get_products
-
-                # Get updated price history data in data @price_history
-                data.get_price_history
-
-                ui.draw
-
-                start_row = 0
-                selection_position = 0
-                current_product = 0
-
-            # Favorite item
-            when "."
-                product = products[current_product]
-                favorites.favorite_product(product['id'])
-                ui.draw
-
-            # Save search
-            when "t"
-                search = Verkkis::Searches.new
-                search.save_search(search_term)
-                ui.draw
-
-            # Show favorites
-            when "s"
-                Curses.setpos(Config.max_lines - 1, 0)
-                Curses.clrtoeol
-                ui.draw
-
-                favorite_products = favorites.get_favorites
-                products = original_products
-                products = products.select { |product| favorite_products.include?(product['id']) }
-
-                show = "favorites"
-
-                start_row = 0
-                selection_position = 0
-                current_product = 0
-
-            # Open product page in browser
-            when "o"
-                product = products[current_product]
-                Launchy.open("https://www.verkkokauppa.com/fi/outlet/yksittaiskappaleet/#{product['id']}")
-
-            # Escape
-            when 27
-                Curses.flushinp
-                products = original_products
-                Curses.refresh
-
-                start_row = 0
-                selection_position = 0
-                current_product = 0
-
-            when 'q'
-                break
-
+                when 'q'
+                    break
             end
         end
     ensure
