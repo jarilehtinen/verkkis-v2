@@ -58,7 +58,7 @@ def main
         original_products = products
 
         # Draw UI elements
-        ui.draw
+        ui.draw("Uusimmat tuotteet")
 
         Curses.refresh
 
@@ -68,7 +68,7 @@ def main
             Config.max_lines = Curses.lines
             Config.max_cols = Curses.cols
             Curses.clear
-            ui.draw
+            ui.draw("")
             Curses.refresh
         end
 
@@ -92,7 +92,7 @@ def main
             if products.empty?
                 win.attron(Curses.color_pair(1)) do
                     text = "Tuotteita ei löytynyt."
-                    win.setpos(Config.max_lines / 2, (Config.max_cols / 2 - text.length / 2))
+                    win.setpos(Config.max_lines / 2 - 1, (Config.max_cols / 2 - text.length / 2))
                     win.addstr(text)
                 end
             end
@@ -181,6 +181,7 @@ def main
 
             # Handle keypresses
             case Curses.getch
+                # Key up
                 when Curses::Key::UP
                     if selection_position == 0 && start_row > 0
                         start_row -= 1
@@ -190,6 +191,7 @@ def main
                         current_product -= 1
                     end
 
+                # Key down
                 when Curses::Key::DOWN
                     if selection_position == max_products - 1 && start_row + max_products < products.length
                         start_row += 1
@@ -199,18 +201,73 @@ def main
                         current_product += 1
                     end
 
+                # Key home
                 when Curses::Key::HOME
                     start_row = 0
 
-                when Curses::Key::NPAGE
+                # Key page up
+                when Curses::Key::PPAGE
                     start_row -= max_products
 
+                # Key page down
                 when Curses::Key::NPAGE
                     start_row += max_products
 
+                # Sort by added
+                when "1"
+                    ui.draw("Uusimmat tuotteet")
+
+                    if show == "added"
+                        order = (order == "asc") ? "desc" : "asc"
+                    else
+                        order = "asc"
+                    end
+
+                    show = "added"
+                    products = original_products
+
+                    if order == "desc"
+                        products.reverse!
+                    end
+
+                    start_row = 0
+                    selection_position = 0
+                    current_product = 0
+
+                # Display products based on saved searches
+                when "2"
+                    ui.draw("Tallennettujen hakujen tuotteet")
+
+                    search = Verkkis::Searches.new
+                    searches = search.get_searches
+
+                    # List all products having name matching the search term
+                    products = original_products.select { |product| searches.any? { |search| product['name'].downcase.include?(search.downcase) } }
+
+                    # Sort by name
+                    products.sort_by! { |product| product['name'] }
+
+                    start_row = 0
+                    selection_position = 0
+                    current_product = 0
+
+                # Show favorites
+                when "3"
+                    ui.draw("Suosikit")
+
+                    favorite_products = favorites.get_favorites
+                    products = original_products
+                    products = products.select { |product| favorite_products.include?(product['id']) }
+
+                    show = "favorites"
+
+                    start_row = 0
+                    selection_position = 0
+                    current_product = 0
+
                 # Sort by name
-                when "a"
-                    ui.draw
+                when "4"
+                    ui.draw("Tuotteet aakkosjärjestyksessä")
 
                     if show == "name"
                         order = (order == "asc") ? "desc" : "asc"
@@ -231,8 +288,8 @@ def main
                     current_product = 0
 
                 # Sort by price
-                when "h"
-                    ui.draw
+                when "5"
+                    ui.draw("Tuotteet hinnan mukaan")
 
                     if show == "price"
                         order = (order == "asc") ? "desc" : "asc"
@@ -253,74 +310,38 @@ def main
                     current_product = 0
                     show = "asc"
 
-                # Sort by added
-                when "u"
-                    ui.draw
-
-                    if show == "added"
-                        order = (order == "asc") ? "desc" : "asc"
-                    else
-                        order = "asc"
-                    end
-
-                    show = "added"
-                    products = original_products
-
-                    if order == "desc"
-                        products.reverse!
-                    end
-
-                    start_row = 0
-                    selection_position = 0
-                    current_product = 0
-
-                # Display products based on saved searches
-                when "l"
-                    ui.draw
-
-                    search = Verkkis::Searches.new
-                    searches = search.get_searches
-
-                    # List all products having name matching the search term
-                    products = original_products.select { |product| searches.any? { |search| product['name'].downcase.include?(search.downcase) } }
-
-                    # Sort by name
-                    products.sort_by! { |product| product['name'] }
-
-                    start_row = 0
-                    selection_position = 0
-                    current_product = 0
-
                 # List saved searches on window
-                when "z"
+                when "h"
                     searches = Verkkis::Searches.new
                     searches = searches.list(ui)
 
                 # Search
                 when "e"
-                    # Clear last line
-                    Curses.setpos(Config.max_lines - 1, 0)
-                    Curses.clrtoeol
+                    y_pos = Config.max_lines / 2
+                    x_pos = Config.max_cols / 2
 
-                    Curses.flushinp
-                    Curses.refresh
+                    ui.draw('Etsi tuotetta')
+                    ui.box(4, 40, y_pos - 1, x_pos - 15)
 
-                    Curses.setpos(Config.max_lines - 1, 1)
-                    Curses.addstr("Etsi: ")
+                    win_search = Curses::Window.new(1, 20, y_pos + 1, x_pos - 10) # h, w, y, x
+
+                    win_search.attron(Curses.color_pair(1)) do
+                        win_search.erase
+                        win_search.setpos(0, 0)
+                        win_search.addstr("Etsi: ")
+                    end
 
                     # Read search term
-                    search_term = Curses.getstr
+                    search_term = win_search.getstr
 
                     if search_term.length > 0
                         products = original_products.select { |product| product['name'].downcase.include?(search_term.downcase) }
-                        ui.draw
+                        ui.draw("Hakutulokset: " + search_term)
                     else
                         # Reset
                         products = original_products
-                        ui.draw
+                        ui.draw("Uusimmat tuotteet")
                     end
-
-                    ui.title("Etsi: " + search_term)
 
                     start_row = 0
                     selection_position = 0
@@ -339,6 +360,9 @@ def main
 
                 # Update products
                 when "p", Curses::Key::F5
+                    ui.draw("Tuotteiden päivitys")
+                    Curses.refresh
+
                     data = Verkkis::Data.new
                     data.update_data
 
@@ -348,7 +372,7 @@ def main
                     # Get updated price history data in data @price_history
                     data.get_price_history
 
-                    ui.draw
+                    ui.draw("")
 
                     start_row = 0
                     selection_position = 0
@@ -358,27 +382,13 @@ def main
                 when "."
                     product = products[current_product]
                     favorites.favorite_product(product['id'])
-                    ui.draw
+                    ui.draw("")
 
                 # Save search
                 when "t"
                     search = Verkkis::Searches.new
                     search.save_search(search_term)
-                    ui.draw
-
-                # Show favorites
-                when "s"
-                    ui.draw
-
-                    favorite_products = favorites.get_favorites
-                    products = original_products
-                    products = products.select { |product| favorite_products.include?(product['id']) }
-
-                    show = "favorites"
-
-                    start_row = 0
-                    selection_position = 0
-                    current_product = 0
+                    ui.draw("")
 
                 # Open product page in browser
                 when "o"
@@ -387,9 +397,8 @@ def main
 
                 # Escape
                 when 27
-                    Curses.flushinp
+                    ui.draw("Uusimmat tuotteet")
                     products = original_products
-                    Curses.refresh
 
                     start_row = 0
                     selection_position = 0

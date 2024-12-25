@@ -1,43 +1,61 @@
 module Verkkis
     class UI
-        def draw()
-            box()
-            title("Verkkis")
+        def draw(title_text)
+            box(
+                Config.max_lines - Config.ui_bottom_lines,
+                Config.max_cols,
+                0,
+                0
+            )
+
+            if title_text
+                title(title_text)
+            end
+
             help()
+
             Curses.refresh
         end
 
         # Draw box
-        def box()
-            Curses.setpos(0, 0)
+        def box(h, w, y, x)
+            # Set color
+            Curses.attron(Curses.color_pair(1)) do
+                # Top left corner
+                Curses.setpos(y, x)
+                Curses.addstr("┌")
 
-            Curses.attron(Curses.color_pair(1))
-            Curses.addstr("┌")
+                # Top right corner
+                Curses.setpos(y, x + w - 1)
+                Curses.addstr("┐")
 
-            Curses.setpos(0, 1)
-            Curses.addstr("─" * (Config.max_cols - 2))
+                # Bottom left corner
+                Curses.setpos(y + h, x)
+                Curses.addstr("└")
 
-            Curses.setpos(0, Config.max_cols - 1)
-            Curses.addstr("┐")
+                # Bottom right corner
+                Curses.setpos(y + h, w + x - 1)
+                Curses.addstr("┘")
 
-            Curses.setpos(Config.max_lines - Config.ui_bottom_lines, 0)
-            Curses.addstr("└")
+                # Top horizontal line
+                Curses.setpos(y, x + 1)
+                Curses.addstr("─" * (w - 2))
 
-            Curses.setpos(Config.max_lines - Config.ui_bottom_lines, 1)
-            Curses.addstr("─" * (Config.max_cols - 2))
+                # Bottom horizontal line
+                Curses.setpos(y + h, x + 1)
+                Curses.addstr("─" * (w - 2))
 
-            Curses.setpos(Config.max_lines - Config.ui_bottom_lines, Config.max_cols - 1)
-            Curses.addstr("┘")
+                # Draw vertical lines
+                (y + 1..(y + h - 1)).each do |this_y|
+                    Curses.setpos(this_y, x)
+                    Curses.addstr("│")
+                    Curses.setpos(this_y, x + w - 1)
+                    Curses.addstr("│")
+                end
 
-            # Piirra pystyviivat
-            (1..Config.max_lines - Config.ui_bottom_lines - 1).each do |y|
-                Curses.setpos(y, 0)
-                Curses.addstr("│")
-                Curses.setpos(y, Config.max_cols - 1)
-                Curses.addstr("│")
+                Curses.refresh
             end
 
-            Curses.attroff(Curses.color_pair(1))
         end
 
         # Print title centered
@@ -56,18 +74,18 @@ module Verkkis
             Curses.clrtoeol
 
             texts = {
-                q: "Lopeta",
-                e: "Etsi",
-                t: "Tallenna haku",
-                z: "Tallennetut haut",
-                l: "Haussa",
-                u: "Uudet",
-                a: "A-Ö",
-                h: "Hinta",
-                s: "Suosikit",
+                "1": "Uusimmat",
+                "2": "Haussa",
+                "3": "Suosikit",
+                "4": "A-Ö",
+                "5": "Hinta",
+                "E": "Etsi",
+                "T": "Tallenna haku",
+                "H": "Tallennetut haut",
                 ".": "Suosikki",
-                o: "Avaa selaimeen",
-                p: "Päivitä"
+                "O": "Avaa selaimeen",
+                "P": "Päivitä",
+                "Q": "Lopeta"
             }
 
             y_pos = Config.max_lines - 1
