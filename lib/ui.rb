@@ -1,5 +1,7 @@
 module Verkkis
     class UI
+        last_title = ""
+
         def draw(title_text)
             box(
                 Config.max_lines - Config.ui_bottom_lines,
@@ -8,8 +10,10 @@ module Verkkis
                 0
             )
 
-            if title_text
+            if title_text != ""
                 title(title_text)
+            else
+                title(@last_title)
             end
 
             help()
@@ -60,6 +64,11 @@ module Verkkis
 
         # Print title centered
         def title(title)
+            if title == ""
+                return
+            end
+
+            @last_title = title
             title = " #{title} "
             Curses.setpos(0, (Config.max_cols / 2) - title.length / 2)
             Curses.attron(Curses.color_pair(2))
