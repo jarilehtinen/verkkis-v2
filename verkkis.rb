@@ -313,7 +313,13 @@ def main
                 # List saved searches on window
                 when "h"
                     searches = Verkkis::Searches.new
-                    searches = searches.list(ui)
+
+                    # loop do
+                    search_term = searches.list(ui)
+
+                    if search_term
+                        products = original_products.select { |product| product['name'].downcase.include?(search_term.downcase) }
+                    end
 
                 # Search
                 when "e"

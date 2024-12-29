@@ -51,8 +51,7 @@ module Verkkis
 
         # List searches
         def list(ui)
-            ui.draw
-            ui.title("Tallennetut haut")
+            ui.draw("Tallennetut haut")
 
             win = Curses::Window.new(Config.max_lines - Config.ui_bottom_lines - 1, Config.max_cols - 3, 1, 1)
             win.erase
@@ -64,8 +63,9 @@ module Verkkis
                 if searches
                     searches.each_with_index do |search_term, i|
                         win.attron(Curses.color_pair(selected_search == i ? 2 : 1)) do
+                            text = "#{search_term}" + (" " * (Config.max_cols - 4 - search_term.length))
                             win.setpos(i, 1)
-                            win.addstr("#{search_term}")
+                            win.addstr(text)
                         end
                     end
                 end
@@ -73,12 +73,15 @@ module Verkkis
                 win.refresh
 
                 case Curses.getch
+                    # Down: move down
                     when Curses::Key::DOWN
                         selected_search += 1 if selected_search < searches.length - 1
 
+                    # Up: move up
                     when Curses::Key::UP
                         selected_search -= 1 if selected_search > 0
 
+                    # Delete: delete search
                     when "d", 127
                         index = selected_search
 
@@ -89,6 +92,12 @@ module Verkkis
                             ui.draw
                         end
 
+                    # Enter: search products with given term
+                    when 10
+                        ui.draw("Haku: #{searches[selected_search]}")
+                        return searches[selected_search]
+
+                    # Q: quit
                     when "q", 27
                         break
                 end
