@@ -342,7 +342,7 @@ def main
 
                     if search_term.length > 0
                         products = original_products.select { |product| product['name'].downcase.include?(search_term.downcase) }
-                        ui.draw("Hakutulokset: " + search_term)
+                        ui.draw("Haku: " + search_term)
                     else
                         # Reset
                         products = original_products
