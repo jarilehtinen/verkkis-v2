@@ -140,30 +140,41 @@ module Verkkis
 
         # Save price history
         def save_price_history
+            # Load existing price history or initialize an empty hash
             price_history = if File.exist?(get_price_history_file_path)
                 JSON.parse(File.read(get_price_history_file_path))
             else
                 {}
             end
 
+            # Collect IDs of currently available products
             current_product_ids = @products.map { |product| product[:id] }
 
             @products.each do |product|
-                product_id = product[:id]
+                product_id = product[:id].to_s # Ensure product ID is a string for consistency
                 price = product[:price]
 
-                # Append price to existing price history with date
+                # Check if price history exists for this product
                 if price_history[product_id]
-                    price_history[product_id] << { price: price, date: Time.now.to_i }
+                    # Get the most recent price entry
+                    last_entry = price_history[product_id].last
+
+                    # Add a new entry only if the price has changed
+                    if last_entry["price"] != price
+                        price_history[product_id] << { "price" => price, "date" => Time.now.to_i }
+                    end
                 else
-                    price_history[product_id] = [{ price: price, date: Time.now.to_i }]
+                    # If no price history exists, initialize it with the current price
+                    price_history[product_id] = [{ "price" => price, "date" => Time.now.to_i }]
                 end
             end
 
+            # Remove products that no longer exist
             price_history.keys.each do |product_id|
-                price_history.delete(product_id) unless current_product_ids.include?(product_id)
+                price_history.delete(product_id) unless current_product_ids.include?(product_id.to_i)
             end
 
+            # Write updated price history to file
             File.write(get_price_history_file_path, JSON.pretty_generate(price_history))
         end
 
