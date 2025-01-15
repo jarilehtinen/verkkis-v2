@@ -144,10 +144,13 @@ def main
                     price_diff = 0
                     previous_price = 0
 
-                    if price_history.length > 0
+                    if price_history.length > 1
+                        previous_price = price_history[-2]["price"]
+                    elsif price_history.length == 1
                         previous_price = price_history.last["price"]
-                        price_diff = previous_price - price
                     end
+
+                    price_diff = previous_price - price
 
                     color = is_current_row ? 2 : 3
 
