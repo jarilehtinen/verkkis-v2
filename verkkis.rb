@@ -144,28 +144,31 @@ def main
                     price_diff = 0
                     previous_price = 0
 
-                    if price_history.length > 1
-                        previous_price = price_history[-2]["price"]
-                    elsif price_history.length == 1
-                        previous_price = price_history.last["price"]
+                    if price_history.length > 0
+                        if price_history.length > 1
+                            previous_price = price_history[-2]["price"]
+                        elsif price_history.length == 1
+                            previous_price = price_history.last["price"]
+                        end
+
+                        price_diff = previous_price - price
+
+                        if price_diff != 0
+                            if (price_diff > 0)
+                                price_text = "▼ #{previous_price} € → #{price} €"
+                            elsif (price_diff < 0)
+                                price_text = "▲ #{previous_price} € → #{price} €"
+                            end
+                        end
                     end
 
-                    price_diff = previous_price - price
-
+                    # Price color
                     color = is_current_row ? 2 : 3
 
                     if price_diff > 0
                         color = is_current_row ? 10 : 9
                     elsif price_diff < 0
                         color = is_current_row ? 8 : 7
-                    end
-
-                    if price_diff != 0
-                        if (price_diff > 0)
-                            price_text = "▼ #{previous_price} € → #{price} €"
-                        elsif (price_diff < 0)
-                            price_text = "▲ #{previous_price} € → #{price} €"
-                        end
                     end
 
                     # Product price
