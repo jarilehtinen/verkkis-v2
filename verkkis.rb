@@ -399,7 +399,7 @@ def main
                 # Save search
                 when "t"
                     search = Verkkis::Searches.new
-                    search.save_search(search_term)
+                    search.save_search(ui, search_term)
                     ui.draw("")
 
                 # Open product page in browser

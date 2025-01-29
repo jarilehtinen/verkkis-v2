@@ -22,7 +22,7 @@ module Verkkis
         end
 
         # Save search
-        def save_search(search_string)
+        def save_search(ui, search_string)
             # Check if search_string is empty
             return if search_string.empty?
 
@@ -30,6 +30,7 @@ module Verkkis
             @searches << search_string
             @searches.uniq!
             File.write(get_file_path, JSON.pretty_generate(@searches))
+            ui.draw("Haku \"" + search_string + "\" tallennettu")
         end
 
         # Save searches
