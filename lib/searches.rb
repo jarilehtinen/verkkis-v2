@@ -89,7 +89,7 @@ module Verkkis
                             delete_search(searches[index])
                             searches = get_searches
                             selected_search = selected_search - 1
-                            ui.draw
+                            ui.draw('Tallennetut haut')
                         end
 
                     # Enter: search products with given term
