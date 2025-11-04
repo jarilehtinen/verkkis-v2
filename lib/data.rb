@@ -2,6 +2,9 @@ require 'net/http'
 require 'json'
 require 'uri'
 require 'curses'
+require 'fileutils'
+require 'time'
+require 'openssl'
 
 module Verkkis
     class Data
@@ -12,6 +15,7 @@ module Verkkis
             "Accept-Language" => "en-US,en;q=0.5",
             "Connection" => "keep-alive"
         }
+        SSL_SKIP_ENV = "VERKKIS_SKIP_SSL_VERIFY"
 
         attr_reader :products
         attr_reader :total_pages
@@ -34,6 +38,14 @@ module Verkkis
             File.join(File.expand_path("..", __dir__), ".data/data.json")
         end
 
+        def get_debug_log_path
+            File.join(File.expand_path("..", __dir__), ".data/debug.log")
+        end
+
+        def get_error_log_path
+            File.join(File.expand_path("..", __dir__), ".data/error.log")
+        end
+
         # Get price history file path
         def get_price_history_file_path
             File.join(File.expand_path("..", __dir__), ".data/price_history.json")
@@ -47,6 +59,7 @@ module Verkkis
                 []
             end
         rescue StandardError => e
+            error_log("Error while reading data from disk: #{e.message}\n#{e.backtrace.join("\n")}")
             Curses.setpos(Curses.lines - 1, 0)
             Curses.addstr("Error while reading data from disk! #{e.message}")
             Curses.refresh
@@ -69,6 +82,7 @@ module Verkkis
 
         # Update data
         def update_data
+            debug_log("Starting data update")
             win = Curses::Window.new(Config.max_lines - Config.ui_bottom_lines - 1, Config.max_cols - 3, 1, 1)
             win.clear
 
@@ -80,8 +94,10 @@ module Verkkis
             # Get total pages
             url = get_url(0)
             @total_pages = get_total_pages_from_url(url)
+            debug_log("Total pages resolved to #{@total_pages} from #{url}")
 
             unless @total_pages
+                error_log("Total page count missing for #{url}")
                 text = "Sivujen lukumäärää ei saatu."
                 win.setpos(Config.max_lines / 2 - 1, Config.max_cols / 2 - text.length / 2)
                 win.addstr(text)
@@ -94,7 +110,9 @@ module Verkkis
 
             loop do
                 url = get_url(page)
+                debug_log("Requesting page #{page} from #{url}")
                 data = get_data_from_url(url)
+                debug_log("Page #{page} response #{data.nil? ? 'nil' : 'received'}")
 
                 percent = ((page.to_f / @total_pages) * 100).round
                 loaded = ((percent.to_f / 100) * LOADING_BAR_LENGTH).round
@@ -109,6 +127,7 @@ module Verkkis
                 break if data.nil?
 
                 get_products_from_data(data)
+                debug_log("Accumulated products count: #{@products.length}")
                 page += 1
                 break if page > @total_pages
             end
@@ -119,7 +138,10 @@ module Verkkis
             win.setpos(4, 0)
             win.addstr("Update complete")
             win.refresh
+            debug_log("Data update finished")
         rescue StandardError => e
+            error_log("Error during update: #{e.message}\n#{e.backtrace.join("\n")}")
+            debug_log("Error during update: #{e.message}\n#{e.backtrace.join("\n")}")
             Curses.setpos(Curses.lines - 1, 0)
             Curses.addstr("Error during update: #{e.message}")
             Curses.refresh
@@ -130,8 +152,11 @@ module Verkkis
 
         # Save data
         def save_data
+            debug_log("Saving #{@products.length} products to #{get_file_path}")
             File.write(get_file_path, JSON.pretty_generate(@products))
         rescue StandardError => e
+            error_log("Error while saving data: #{e.message}\n#{e.backtrace.join("\n")}")
+            debug_log("Error while saving data: #{e.message}\n#{e.backtrace.join("\n")}")
             Curses.setpos(Curses.lines - 1, 0)
             Curses.addstr("Error while saving data: #{e.message}")
             Curses.refresh
@@ -175,20 +200,21 @@ module Verkkis
             end
 
             # Write updated price history to file
+            debug_log("Saving price history for #{price_history.keys.length} products")
             File.write(get_price_history_file_path, JSON.pretty_generate(price_history))
         end
 
         # Get data from URL
         def get_data_from_url(url)
             uri = URI(url)
-            http = Net::HTTP.new(uri.host, uri.port)
-            http.use_ssl = true
-
-            request = Net::HTTP::Get.new(uri, HEADERS)
-            response = http.request(request)
+            debug_log("Preparing HTTP GET #{uri}")
+            response = perform_request(uri)
+            debug_log("HTTP #{response.code} received for #{uri}")
             data = JSON.parse(response.body)
 
             if data["message"]
+                debug_log("API returned message for #{uri}: #{data['message']}")
+                error_log("API returned error for #{uri}: #{data['message']}")
                 Curses.setpos(Curses.lines - 1, 0)
                 Curses.addstr("Error while getting data: #{data["message"]}")
                 Curses.refresh
@@ -196,7 +222,21 @@ module Verkkis
             end
 
             data
+        rescue OpenSSL::SSL::SSLError => e
+            error_log("SSL error when fetching #{url}: #{e.message}\n#{e.backtrace.join("\n")}")
+            debug_log("SSL error when fetching #{url}: #{e.message}")
+            unless ssl_verification_disabled?
+                note = "Set #{SSL_SKIP_ENV}=1 to retry without certificate verification (insecure)."
+                error_log(note)
+                debug_log(note)
+            end
+            Curses.setpos(Curses.lines - 1, 0)
+            Curses.addstr("HTTP error: #{e.message}")
+            Curses.refresh
+            nil
         rescue StandardError => e
+            error_log("HTTP error when fetching #{url}: #{e.message}\n#{e.backtrace.join("\n")}")
+            debug_log("HTTP error when fetching #{url}: #{e.message}\n#{e.backtrace.join("\n")}")
             Curses.setpos(Curses.lines - 1, 0)
             Curses.addstr("HTTP error: #{e.message}")
             Curses.refresh
@@ -206,11 +246,16 @@ module Verkkis
         # Get total pages from URL
         def get_total_pages_from_url(url)
             json = get_data_from_url(url)
+            debug_log("Total pages response for #{url} is #{json.nil? ? 'nil' : 'present'}")
             return nil if json.nil?
 
             if json["numPages"]
-                json["numPages"].to_i
+                value = json["numPages"].to_i
+                debug_log("numPages from response: #{value}")
+                value
             else
+                error_log("numPages missing in response for #{url}")
+                debug_log("numPages missing in response for #{url}")
                 Curses.setpos(Curses.lines - 1, 0)
                 Curses.addstr("Missing total page count from response!")
                 Curses.refresh
@@ -221,20 +266,90 @@ module Verkkis
         # Get products from data
         def get_products_from_data(data)
             products_data = data["products"]
-
-            products = products_data.map do |product|
-                {
-                    id: product["customerReturnsInfo"]["id"],
-                    name: product["name"],
-                    description: product["descriptionShort"],
-                    return_info: product["customerReturnsInfo"]["product_extra_info"],
-                    price: product["customerReturnsInfo"]["price_with_tax"],
-                    original_price: product.dig("price", "current"),
-                    condition: product["customerReturnsInfo"]["condition"]
-                }
+            unless products_data.is_a?(Array)
+                debug_log("Products key missing or not array in payload: #{data.keys}")
+                return
             end
 
-            @products.concat(products)
+            products_data.each do |product|
+                customer_returns = product["customerReturnsInfo"]
+                unless customer_returns.is_a?(Hash)
+                    debug_log("Skipping product without customerReturnsInfo: #{product['name']}")
+                    next
+                end
+
+                id = customer_returns["id"]
+                if id.nil?
+                    debug_log("Skipping product with missing id: #{product['name']}")
+                    next
+                end
+
+                @products << {
+                    id: id,
+                    name: product["name"],
+                    description: product["descriptionShort"],
+                    return_info: customer_returns["product_extra_info"],
+                    price: customer_returns["price_with_tax"],
+                    original_price: product.dig("price", "current"),
+                    condition: customer_returns["condition"]
+                }
+                debug_log("Stored product #{id} (#{product['name']})")
+            end
+        end
+
+        def perform_request(uri)
+            request = Net::HTTP::Get.new(uri, HEADERS)
+            build_http_client(uri).request(request)
+        end
+
+        def build_http_client(uri)
+            http = Net::HTTP.new(uri.host, uri.port)
+            http.use_ssl = true
+            http.cert_store = OpenSSL::X509::Store.new.tap { |store| store.set_default_paths }
+
+            if ssl_verification_disabled?
+                http.verify_mode = OpenSSL::SSL::VERIFY_NONE
+                log_insecure_ssl_warning unless @insecure_ssl_warning_logged
+            else
+                http.verify_mode = OpenSSL::SSL::VERIFY_PEER
+            end
+
+            http
+        end
+
+        def ssl_verification_disabled?
+            ENV.fetch(SSL_SKIP_ENV, "").strip == "1"
+        end
+
+        def log(level, message)
+            path = case level
+            when :error
+                get_error_log_path
+            else
+                get_debug_log_path
+            end
+
+            FileUtils.mkdir_p(File.dirname(path))
+            File.open(path, "a") do |file|
+                file.puts("[#{Time.now.iso8601}] #{message}")
+            end
+        rescue StandardError
+            # Ignore logging errors to avoid impacting the main flow
+        end
+
+        def log_insecure_ssl_warning
+            warning = "SSL verification disabled (#{SSL_SKIP_ENV}=1). Connection is insecure."
+            log(:error, warning)
+            log(:debug, warning)
+            @insecure_ssl_warning_logged = true
+        end
+
+        def debug_log(message)
+            log(:debug, message)
+        end
+
+        def error_log(message)
+            log(:error, message)
         end
     end
 end
