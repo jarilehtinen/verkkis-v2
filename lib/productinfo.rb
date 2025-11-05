@@ -1,6 +1,7 @@
 module Verkkis
     class ProductInfo
         def view(ui, product)
+            previous_title = ui.current_title
             ui.draw(product['name'])
 
             win = Curses::Window.new(Config.max_lines - Config.ui_bottom_lines - 1, Config.max_cols - 3, 1, 1)
@@ -43,7 +44,8 @@ module Verkkis
                 end
             end
 
-            ui.draw("")
+            restored_title = previous_title.to_s.empty? ? "Uusimmat tuotteet" : previous_title
+            ui.draw(restored_title)
         end
     end
 end
