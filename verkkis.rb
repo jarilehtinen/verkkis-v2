@@ -329,22 +329,41 @@ def main
 
                 # Search
                 when "e"
-                    y_pos = Config.max_lines / 2
-                    x_pos = Config.max_cols / 2
-
                     ui.draw('Etsi tuotetta')
-                    ui.box(4, 40, y_pos - 1, x_pos - 15)
+                    y_center = Config.max_lines / 2
+                    box_width = [[Config.max_cols - 4, 80].min, 30].max
+                    box_height = 4
+                    box_left = [[(Config.max_cols - box_width) / 2, 0].max, Config.max_cols - box_width - 1].min
+                    box_top = [[y_center - 2, 0].max, Config.max_lines - box_height - 1].min
 
-                    win_search = Curses::Window.new(1, 20, y_pos + 1, x_pos - 10) # h, w, y, x
+                    ui.box(box_height, box_width, box_top, box_left)
+
+                    input_width = box_width - 4
+                    input_left = box_left + 2
+                    input_top = box_top + 2
+                    prompt = "Etsi: "
+
+                    win_search = Curses::Window.new(1, input_width, input_top, input_left)
 
                     win_search.attron(Curses.color_pair(1)) do
                         win_search.erase
                         win_search.setpos(0, 0)
-                        win_search.addstr("Etsi: ")
+                        win_search.addstr(prompt)
+                        win_search.clrtoeol
                     end
 
-                    # Read search term
-                    search_term = win_search.getstr
+                    win_search.setpos(0, prompt.length)
+                    win_search.refresh
+
+                    begin
+                        Curses.curs_set(1)
+                        Curses.echo
+                        # Read search term
+                        search_term = win_search.getstr
+                    ensure
+                        Curses.noecho
+                        Curses.curs_set(0)
+                    end
 
                     if search_term.length > 0
                         products = original_products.select { |product| product['name'].downcase.include?(search_term.downcase) }
