@@ -61,6 +61,10 @@ module Verkkis
             selected_search = 0
 
             loop do
+                delete_keys = ["d", 127]
+                delete_keys << Curses::Key::BACKSPACE if defined?(Curses::Key::BACKSPACE)
+                delete_keys << Curses::Key::DC if defined?(Curses::Key::DC)
+
                 if searches
                     searches.each_with_index do |search_term, i|
                         win.attron(Curses.color_pair(selected_search == i ? 2 : 1)) do
@@ -83,13 +87,17 @@ module Verkkis
                         selected_search -= 1 if selected_search > 0
 
                     # Delete: delete search
-                    when "d", 127
+                    when *delete_keys
                         index = selected_search
 
                         if index >= 0 && index < searches.length
                             delete_search(searches[index])
                             searches = get_searches
-                            selected_search = selected_search - 1
+                            if searches.empty?
+                                selected_search = 0
+                            else
+                                selected_search = [index, searches.length - 1].min
+                            end
                             ui.draw('Tallennetut haut')
                         end
 
