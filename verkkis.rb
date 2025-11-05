@@ -148,7 +148,7 @@ def main
             max_products = Config.max_lines - Config.ui_bottom_lines - 1
 
             # Get favorites
-            favorite_products = favorites.get_favorites
+            favorite_products = favorites.get_favorites(original_products)
 
             # Text widths/positions
             title_col_width = Config.max_cols - 12
@@ -267,12 +267,26 @@ def main
 
                 # Key down
                 when Curses::Key::DOWN
-                    if selection_position == max_products - 1 && start_row + max_products < products.length
-                        start_row += 1
-                        current_product += 1
-                    elsif selection_position < max_products - 1
-                        selection_position += 1
-                        current_product += 1
+                    visible_count = if products.length.positive?
+                        [products.length - start_row, max_products].min
+                    else
+                        0
+                    end
+                    visible_count = 0 if visible_count.negative?
+                    next if visible_count.zero?
+
+                    next_index = current_product + 1
+
+                    if next_index < products.length
+                        if selection_position == visible_count - 1
+                            if start_row + visible_count < products.length
+                                start_row += 1
+                                current_product = next_index
+                            end
+                        elsif selection_position < visible_count - 1
+                            selection_position += 1
+                            current_product = next_index
+                        end
                     end
 
                 # Key home
@@ -333,7 +347,7 @@ def main
                 when "3"
                     ui.draw("Suosikit")
 
-                    favorite_products = favorites.get_favorites
+                    favorite_products = favorites.get_favorites(original_products)
                     products = original_products.select { |product| favorite_products.include?(product['id']) }
 
                     show = "favorites"
