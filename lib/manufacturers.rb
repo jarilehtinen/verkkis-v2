@@ -1,64 +1,54 @@
 module Verkkis
     class Manufacturers
         def list(ui, products)
-            ui.draw
-            ui.title("Valmistajat")
+            manufacturers = products.map { |product| manufacturer_from_name(product['name']) }.compact.uniq.sort
+            return nil if manufacturers.empty?
+
+            ui.draw("Valmistajat")
 
             current_manufacturer = 0
+            win = nil
+            window_height = Config.max_lines - Config.ui_bottom_lines - 1
+            window_width = Config.max_cols - 3
+            max_rows = window_height
+            max_rows = 1 if max_rows < 1
+            col_padding = 2
+            col_width = [manufacturers.map(&:length).max || 0, 20].max
+            max_col_width = [window_width - 2, 1].max
+            col_width = [col_width, max_col_width].min
 
-            win = Curses::Window.new(Config.max_lines - Config.ui_bottom_lines - 1, Config.max_cols - 3, 1, 1)
+            win = Curses::Window.new(window_height, window_width, 1, 1)
             win.erase
 
             loop do
-                # Manufacturer is usually the first word in the product name
-                # get all unique manufacturers
-                manufacturers = products.map { |product| product['name'].split(" ")[0] }.uniq
+                win.erase
 
-                # Sort alphabetically
-                manufacturers.sort!
+                manufacturers.each_with_index do |manufacturer, index|
+                    row = index % max_rows
+                    col = index / max_rows
+                    x_pos = 1 + col * (col_width + col_padding)
+                    break if x_pos + col_width >= window_width
 
-                y = 0
-                x_pos = 1
-                manufacturer_i = 0
-                col_width = 20
-                col_padding = 1
-
-                manufacturers.each_with_index do |manufacturer, i|
-                    color = (manufacturer_i == current_manufacturer) ? 2 : 1
+                    color = (index == current_manufacturer) ? 2 : 1
 
                     win.attron(Curses.color_pair(color)) do
-                        text = "#{manufacturer}";
-
-                        if (text.length > col_width)
-                            text = text[0, col_width - 3] + "..."
+                        text = manufacturer
+                        if text.length > col_width
+                            text = if col_width > 3
+                                text[0, col_width - 3] + "..."
+                            else
+                                text[0, col_width]
+                            end
                         end
 
-                        win.setpos(y, x_pos)
-                        win.addstr(text)
-
-                        if (text.length < col_width)
-                            win.setpos(y, x_pos + text.length)
-                            win.addstr(" " * (col_width - text.length))
-                        end
-                    end
-
-                    y += 1
-                    manufacturer_i += 1
-
-                    # If Config.max_lines is exceeded, move to next column
-                    if y >= Config.max_lines - Config.ui_bottom_lines - 1
-                        x_pos += col_width + col_padding
-                        y = 0
-                    end
-
-                    if x_pos + col_width >= Config.max_cols
-                        break
+                        win.setpos(row, x_pos)
+                        win.addstr(text.ljust(col_width))
                     end
                 end
 
                 win.refresh
 
-                case Curses.getch
+                case (ch = Curses.getch)
                     when Curses::Key::DOWN
                         current_manufacturer += 1 if current_manufacturer < manufacturers.length - 1
 
@@ -66,15 +56,38 @@ module Verkkis
                         current_manufacturer -= 1 if current_manufacturer > 0
 
                     when Curses::Key::LEFT
-                        current_manufacturer -= Config.max_lines - Config.ui_bottom_lines - 1
+                        current_manufacturer -= max_rows
+                        current_manufacturer = 0 if current_manufacturer.negative?
 
                     when Curses::Key::RIGHT
-                        current_manufacturer += Config.max_lines - Config.ui_bottom_lines - 1
+                        current_manufacturer += max_rows
+                        current_manufacturer = manufacturers.length - 1 if current_manufacturer >= manufacturers.length
+
+                    when 10, Curses::Key::ENTER
+                        selected = manufacturers[current_manufacturer]
+                        win.clear
+                        win.refresh
+                        win.close
+                        win = nil
+                        return selected
 
                     when "q", 27
                         break
                 end
             end
+        ensure
+            if win
+                win.clear
+                win.refresh
+                win.close
+            end
+        end
+
+        private
+
+        def manufacturer_from_name(name)
+            return nil unless name
+            name.split(/\s/).first
         end
     end
 end

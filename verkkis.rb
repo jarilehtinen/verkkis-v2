@@ -47,6 +47,8 @@ def main
         start_row = 0
         show = "added"
         order = "desc"
+        manufacturer_filter = nil
+        manufacturer_prev_state = nil
 
         # Lines and cols
         Config.max_lines = Curses.lines
@@ -57,6 +59,69 @@ def main
 
         # Store products for resetting
         original_products = products.dup
+
+        select_manufacturer = lambda do |fallback_title, capture_previous: false|
+            fallback_title = fallback_title.to_s
+
+            if capture_previous && manufacturer_prev_state.nil?
+                stored_title = fallback_title.empty? ? ui.current_title.to_s : fallback_title
+                stored_title = "Uusimmat tuotteet" if stored_title.empty?
+
+                manufacturer_prev_state = {
+                    products: products.dup,
+                    show: show,
+                    order: order,
+                    search_term: search_term,
+                    start_row: start_row,
+                    selection_position: selection_position,
+                    current_product: current_product,
+                    title: stored_title
+                }
+            end
+
+            manufacturers = Verkkis::Manufacturers.new
+            selected_manufacturer = manufacturers.list(ui, original_products)
+
+            title_to_draw = nil
+
+            if selected_manufacturer
+                manufacturer_filter = selected_manufacturer
+                products = original_products.select do |product|
+                    name = product['name']
+                    next false unless name
+                    name.split(/\s/).first == selected_manufacturer
+                end
+
+                title_to_draw = "Valmistaja: #{selected_manufacturer}"
+
+                show = "manufacturer"
+                start_row = 0
+                selection_position = 0
+                current_product = 0
+            else
+                if manufacturer_prev_state
+                    stored_products = manufacturer_prev_state[:products] || []
+                    products = stored_products.dup
+                    show = manufacturer_prev_state[:show]
+                    order = manufacturer_prev_state[:order]
+                    search_term = manufacturer_prev_state[:search_term]
+                    start_row = manufacturer_prev_state[:start_row]
+                    selection_position = manufacturer_prev_state[:selection_position]
+                    current_product = manufacturer_prev_state[:current_product]
+                    title_to_draw = manufacturer_prev_state[:title]
+                    manufacturer_prev_state = nil
+                    manufacturer_filter = nil
+                else
+                    title_to_draw = fallback_title.empty? ? (manufacturer_filter ? "Valmistaja: #{manufacturer_filter}" : "Uusimmat tuotteet") : fallback_title
+                end
+            end
+
+            title_to_draw = "Uusimmat tuotteet" if title_to_draw.to_s.empty?
+            Curses.clear
+            ui.draw(title_to_draw)
+
+            selected_manufacturer
+        end
 
         # Draw UI elements
         ui.draw("Uusimmat tuotteet")
@@ -233,6 +298,8 @@ def main
                     end
 
                     show = "added"
+                    manufacturer_filter = nil
+                    manufacturer_prev_state = nil
                     products = original_products.dup
 
                     if order == "desc"
@@ -252,6 +319,8 @@ def main
 
                     # List all products having name matching the search term
                     products = original_products.select { |product| searches.any? { |search| product['name'].downcase.include?(search.downcase) } }
+                    manufacturer_filter = nil
+                    manufacturer_prev_state = nil
 
                     # Sort by name
                     products.sort_by! { |product| product['name'] }
@@ -268,6 +337,8 @@ def main
                     products = original_products.select { |product| favorite_products.include?(product['id']) }
 
                     show = "favorites"
+                    manufacturer_filter = nil
+                    manufacturer_prev_state = nil
 
                     start_row = 0
                     selection_position = 0
@@ -284,6 +355,8 @@ def main
                     end
 
                     show = "name"
+                    manufacturer_filter = nil
+                    manufacturer_prev_state = nil
                     products = original_products.dup
                     products.sort_by! { |product| product['name'] }
 
@@ -306,6 +379,8 @@ def main
                     end
 
                     show = "price"
+                    manufacturer_filter = nil
+                    manufacturer_prev_state = nil
                     products = original_products.dup
                     products.sort_by! { |product| product['price'] }
 
@@ -326,6 +401,8 @@ def main
 
                     if search_term
                         products = original_products.select { |product| product['name'].downcase.include?(search_term.downcase) }
+                        manufacturer_filter = nil
+                        manufacturer_prev_state = nil
                     end
 
                 # Search
@@ -516,9 +593,13 @@ def main
                         ui.draw(restored_title)
                     elsif search_term.length > 0
                         products = original_products.select { |product| product['name'].downcase.include?(search_term.downcase) }
+                        manufacturer_filter = nil
+                        manufacturer_prev_state = nil
                         ui.draw("Haku: " + search_term)
                     else
                         products = original_products.dup
+                        manufacturer_filter = nil
+                        manufacturer_prev_state = nil
                         ui.draw("Uusimmat tuotteet")
                     end
 
@@ -534,10 +615,8 @@ def main
                     product_info.view(ui, products[current_product])
 
                 # List manufacturers when pressing "v"
-                # Work in progress
                 when "v"
-                    manufacturers = Verkkis::Manufacturers.new
-                    manufacturers.list(ui, products)
+                    select_manufacturer.call(ui.current_title, capture_previous: show != "manufacturer")
 
                 # Update products
                 when "p", Curses::Key::F5
@@ -550,6 +629,8 @@ def main
                     # Load updated products
                     products = data.get_products
                     original_products = products.dup
+                    manufacturer_filter = nil
+                    manufacturer_prev_state = nil
 
                     # Get updated price history data in data @price_history
                     data.get_price_history
@@ -580,12 +661,18 @@ def main
                 # Escape
                 when 27
                     Curses.flushinp if Curses.respond_to?(:flushinp)
-                    ui.draw("Uusimmat tuotteet")
-                    products = original_products.dup
+                    if show == "manufacturer"
+                        select_manufacturer.call(ui.current_title, capture_previous: false)
+                    else
+                        manufacturer_filter = nil
+                        manufacturer_prev_state = nil
+                        ui.draw("Uusimmat tuotteet")
+                        products = original_products.dup
 
-                    start_row = 0
-                    selection_position = 0
-                    current_product = 0
+                        start_row = 0
+                        selection_position = 0
+                        current_product = 0
+                    end
 
                 when 'q'
                     break

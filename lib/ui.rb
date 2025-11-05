@@ -95,6 +95,7 @@ module Verkkis
                 "E": "Etsi",
                 "T": "Tallenna haku",
                 "H": "Tallennetut haut",
+                "V": "Valmistajat",
                 ".": "Suosikki",
                 "O": "Avaa selaimeen",
                 "P": "Päivitä",
