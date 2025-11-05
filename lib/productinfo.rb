@@ -15,10 +15,25 @@ module Verkkis
                     win.addstr("#{product['name']}")
                 end
 
+                condition_row = nil
+
                 win.attron(Curses.color_pair(5)) do
-                    win.setpos(3, 3)
-                    win.addstr("#{product['description']}")
-                    win.setpos(6, 3)
+                    description_start_y = 3
+                    description_start_x = 3
+                    description_width = [win.maxx - description_start_x - 1, 1].max
+                    description_lines = wrap_text_to_width(product['description'], description_width)
+
+                    unless description_lines.empty?
+                        win.setpos(description_start_y, description_start_x)
+                        indent = " " * description_start_x
+                        win.addstr(description_lines.join("\n" + indent))
+                    end
+
+                    lines_written = description_lines.length
+                    price_row_default = description_start_y + 3
+                    price_row = [price_row_default, description_start_y + lines_written + 1].max
+
+                    win.setpos(price_row, description_start_x)
                     text = "Hinta:  #{product['price']} €"
 
                     if product['original_price']
@@ -26,16 +41,21 @@ module Verkkis
                     end
 
                     win.addstr(text)
-                    win.setpos(7, 3)
+                    condition_row = price_row + 1
+                    win.setpos(condition_row, description_start_x)
                     win.addstr("Kunto:  #{product['condition']}")
                 end
 
+                condition_row ||= 7
+                link_row = condition_row + 2
+
                 win.attron(Curses.color_pair(6)) do
-                    win.setpos(9, 3)
+                    win.setpos(link_row, 3)
                     win.addstr("https://www.verkkokauppa.com/fi/outlet/yksittaiskappaleet/#{product['id']}")
                 end
 
-                render_price_history_chart(win, price_changes)
+                chart_top = link_row + 2
+                render_price_history_chart(win, price_changes, chart_top: chart_top)
                 win.refresh
 
                 key = win.getch
@@ -74,9 +94,8 @@ module Verkkis
             end
         end
 
-        def render_price_history_chart(win, price_changes)
+        def render_price_history_chart(win, price_changes, chart_top: 11)
             chart_left = 4
-            chart_top = 11
             chart_width = Config.max_cols - chart_left - 6
             available_height = Config.max_lines - Config.ui_bottom_lines - chart_top - 4
 
@@ -171,6 +190,33 @@ module Verkkis
             draw_grid(win, grid, chart_left, chart_top)
             draw_axis_labels(win, points, min_price, max_price, chart_left, chart_top, chart_width, chart_height, axis_row, labels_row)
             draw_legend(win, legend_row, chart_left, chart_width)
+        end
+
+        def wrap_text_to_width(text, width)
+            width = [width, 1].max
+
+            text.to_s.split(/\r?\n/, -1).each_with_object([]) do |paragraph, lines|
+                if paragraph.strip.empty?
+                    lines << ""
+                    next
+                end
+
+                current_line = ""
+                paragraph.split(/\s+/).each do |word|
+                    next if word.empty?
+
+                    if current_line.empty?
+                        current_line = word
+                    elsif current_line.length + 1 + word.length <= width
+                        current_line << " " << word
+                    else
+                        lines << current_line
+                        current_line = word
+                    end
+                end
+
+                lines << current_line unless current_line.empty?
+            end
         end
 
         def clear_chart_area(win, top_row, bottom_row, left_col)
