@@ -53,7 +53,6 @@ module Verkkis
                     win.setpos(link_row, 3)
                     win.addstr("https://www.verkkokauppa.com/fi/outlet/yksittaiskappaleet/#{product['id']}")
                 end
-
                 chart_top = link_row + 2
                 render_price_history_chart(win, price_changes, chart_top: chart_top)
                 win.refresh
@@ -95,9 +94,16 @@ module Verkkis
         end
 
         def render_price_history_chart(win, price_changes, chart_top: 11)
-            chart_left = 4
-            chart_width = Config.max_cols - chart_left - 6
-            available_height = Config.max_lines - Config.ui_bottom_lines - chart_top - 4
+            chart_padding_left = 2
+            chart_padding_right = 2
+            chart_left = 2 + chart_padding_left
+            chart_width = Config.max_cols - chart_left - 6 - chart_padding_right
+            chart_area_top = chart_top
+            title_padding_above = 2
+            title_padding_below = 1
+            title_row = chart_area_top + title_padding_above
+            chart_body_top = title_row + title_padding_below + 1
+            available_height = Config.max_lines - Config.ui_bottom_lines - chart_body_top - 4
 
             return if chart_width < 2 || available_height < 1
 
@@ -106,15 +112,15 @@ module Verkkis
             chart_height = [chart_height, 3].max if available_height >= 3
             chart_height = [chart_height, 1].max
 
-            axis_row = chart_top + chart_height
+            axis_row = chart_body_top + chart_height
             labels_row = axis_row + 1
             legend_row = labels_row + 1
 
-            clear_chart_area(win, chart_top - 1, legend_row, chart_left - 2) # allow header clearing
+            clear_chart_area(win, chart_area_top, legend_row, chart_left - 2) # allow header clearing
 
             if price_changes.length <= 1
                 win.attron(Curses.color_pair(5)) do
-                    win.setpos(chart_top, chart_left)
+                    win.setpos(chart_body_top, chart_left)
                     win.addstr(price_changes.empty? ? "Hintahistoria ei ole saatavilla." : "Hintamuutoksia ei ole.")
                 end
                 return
@@ -122,7 +128,9 @@ module Verkkis
 
             chart_title = "Hintakehitys (#{format_price(price_changes.first[:price])} € → #{format_price(price_changes.last[:price])} €)"
             win.attron(Curses.color_pair(5)) do
-                win.setpos(chart_top - 1, chart_left)
+                title_offset_adjustment = 2 # preserve previous title column after shifting chart left
+                title_col = [chart_left - 1 - chart_padding_left + title_offset_adjustment, 0].max
+                win.setpos(title_row, title_col)
                 win.addstr(chart_title[0, chart_width])
             end
 
@@ -166,7 +174,7 @@ module Verkkis
 
                 x_range = x1 < x2 ? (x1..x2) : (x2..x1)
                 slope_char = if y2 > y1
-                    "\\"
+                    "░"
                 elsif y2 < y1
                     "/"
                 else
@@ -186,9 +194,9 @@ module Verkkis
                 grid[point[:y]][point[:x]] = char
             end
 
-            draw_axes(win, chart_left, chart_top, chart_width, chart_height)
-            draw_grid(win, grid, chart_left, chart_top)
-            draw_axis_labels(win, points, min_price, max_price, chart_left, chart_top, chart_width, chart_height, axis_row, labels_row)
+            draw_axes(win, chart_left, chart_body_top, chart_width, chart_height)
+            draw_grid(win, grid, chart_left, chart_body_top)
+            draw_axis_labels(win, points, min_price, max_price, chart_left, chart_body_top, chart_width, chart_height, axis_row, labels_row)
             draw_legend(win, legend_row, chart_left, chart_width)
         end
 
@@ -237,7 +245,7 @@ module Verkkis
             end
 
             win.setpos(top + height, left - 1)
-            win.addstr("+" + "-" * width)
+            win.addstr("|" + "-" * width)
         end
 
         def draw_grid(win, grid, left, top)
@@ -251,12 +259,19 @@ module Verkkis
             win.attron(Curses.color_pair(5)) do
                 max_label = "#{format_price(max_price)} €"
                 min_label = "#{format_price(min_price)} €"
+                label_width = [max_label.length, min_label.length].max
+                desired_col = left + width + 2
+                max_start_col = win.maxx - label_width
+                label_col = desired_col
+                label_col = [label_col, left + width + 1].max
+                label_col = [label_col, max_start_col].min
+                label_col = [label_col, 0].max
 
-                win.setpos(top, left + width + 1)
-                win.addstr(max_label)
+                win.setpos(top, label_col)
+                win.addstr(max_label[0, win.maxx - label_col])
 
-                win.setpos(top + height - 1, left + width + 1)
-                win.addstr(min_label)
+                win.setpos(top + height - 1, label_col)
+                win.addstr(min_label[0, win.maxx - label_col])
             end
 
             points.each do |point|
