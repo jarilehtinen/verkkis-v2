@@ -55,7 +55,7 @@ def main
         products = data.get_products
 
         # Store products for resetting
-        original_products = products
+        original_products = products.dup
 
         # Draw UI elements
         ui.draw("Uusimmat tuotteet")
@@ -230,7 +230,7 @@ def main
                     end
 
                     show = "added"
-                    products = original_products
+                    products = original_products.dup
 
                     if order == "desc"
                         products.reverse!
@@ -262,8 +262,7 @@ def main
                     ui.draw("Suosikit")
 
                     favorite_products = favorites.get_favorites
-                    products = original_products
-                    products = products.select { |product| favorite_products.include?(product['id']) }
+                    products = original_products.select { |product| favorite_products.include?(product['id']) }
 
                     show = "favorites"
 
@@ -282,7 +281,7 @@ def main
                     end
 
                     show = "name"
-                    products = original_products
+                    products = original_products.dup
                     products.sort_by! { |product| product['name'] }
 
                     if order == "desc"
@@ -304,7 +303,7 @@ def main
                     end
 
                     show = "price"
-                    products = original_products
+                    products = original_products.dup
                     products.sort_by! { |product| product['price'] }
 
                     if order == "desc"
@@ -314,7 +313,6 @@ def main
                     start_row = 0
                     selection_position = 0
                     current_product = 0
-                    show = "asc"
 
                 # List saved searches on window
                 when "h"
@@ -370,7 +368,7 @@ def main
                         ui.draw("Haku: " + search_term)
                     else
                         # Reset
-                        products = original_products
+                        products = original_products.dup
                         ui.draw("Uusimmat tuotteet")
                     end
 
@@ -399,6 +397,7 @@ def main
 
                     # Load updated products
                     products = data.get_products
+                    original_products = products.dup
 
                     # Get updated price history data in data @price_history
                     data.get_price_history
@@ -429,7 +428,7 @@ def main
                 # Escape
                 when 27
                     ui.draw("Uusimmat tuotteet")
-                    products = original_products
+                    products = original_products.dup
 
                     start_row = 0
                     selection_position = 0
