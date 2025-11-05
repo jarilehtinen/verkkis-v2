@@ -2,6 +2,10 @@ module Verkkis
     class UI
         last_title = ""
 
+        def current_title
+            @last_title
+        end
+
         def draw(title_text)
             box(
                 Config.max_lines - Config.ui_bottom_lines,

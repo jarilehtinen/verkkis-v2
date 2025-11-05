@@ -10,6 +10,7 @@ require_relative 'lib/manufacturers'
 require_relative 'lib/productinfo'
 
 def main
+    ENV['ESCDELAY'] = '25'
     # Activate alternate screen
     print "\e[?1049h"
 
@@ -186,7 +187,9 @@ def main
             win.refresh
 
             # Handle keypresses
-            case Curses.getch
+            key = Curses.getch
+
+            case key
                 # Key up
                 when Curses::Key::UP
                     if selection_position == 0 && start_row > 0
@@ -336,13 +339,16 @@ def main
                     min_box_width = [prompt.length + 6, 20].max
                     max_box_width = [Config.max_cols - 4, min_box_width].max
                     box_width = [[half_box_width, min_box_width].max, max_box_width].min
+                    base_box_width = box_width
                     input_width = box_width - 4
 
+                    previous_title = ui.current_title
                     search_term = ""
                     cursor_pos = 0
                     display_offset = 0
                     dirty_layout = true
                     win_search = nil
+                    search_cancelled = false
 
                     backspace_keys = [127]
                     backspace_keys << Curses::Key::BACKSPACE if defined?(Curses::Key::BACKSPACE)
@@ -352,6 +358,9 @@ def main
                     resize_key = defined?(Curses::Key::RESIZE) ? Curses::Key::RESIZE : nil
                     enter_keys = [10]
                     enter_keys << Curses::Key::ENTER if defined?(Curses::Key::ENTER)
+                    cancel_keys = [27]
+                    cancel_keys << "\e"
+                    cancel_keys << Curses::Key::EXIT if defined?(Curses::Key::EXIT)
 
                     calculate_layout = lambda do |width|
                         box_top = [[y_center - 2, 0].max, Config.max_lines - box_height - 1].min
@@ -428,6 +437,24 @@ def main
                             ch = win_search.getch
                             break if ch.nil?
 
+                            if cancel_keys.include?(ch) || (defined?(Curses::Key::CANCEL) && ch == Curses::Key::CANCEL)
+                                if search_term.length.zero?
+                                    search_cancelled = true
+                                    Curses.flushinp if Curses.respond_to?(:flushinp)
+                                    break
+                                else
+                                    search_term = ""
+                                    cursor_pos = 0
+                                    display_offset = 0
+                                    box_width = base_box_width
+                                    input_width = box_width - 4
+                                    dirty_layout = true
+                                    Curses.flushinp if Curses.respond_to?(:flushinp)
+                                    refresh_input.call
+                                    next
+                                end
+                            end
+
                             if resize_key && ch == resize_key
                                 dirty_layout = true
                                 next
@@ -477,9 +504,17 @@ def main
                     ensure
                         Curses.curs_set(0)
                         Curses.noecho
+                        if win_search
+                            win_search.clear
+                            win_search.refresh
+                        end
                     end
 
-                    if search_term.length > 0
+                    if search_cancelled
+                        restored_title = previous_title.to_s.empty? ? "Uusimmat tuotteet" : previous_title
+                        Curses.clear
+                        ui.draw(restored_title)
+                    elsif search_term.length > 0
                         products = original_products.select { |product| product['name'].downcase.include?(search_term.downcase) }
                         ui.draw("Haku: " + search_term)
                     else
@@ -487,9 +522,11 @@ def main
                         ui.draw("Uusimmat tuotteet")
                     end
 
-                    start_row = 0
-                    selection_position = 0
-                    current_product = 0
+                    unless search_cancelled
+                        start_row = 0
+                        selection_position = 0
+                        current_product = 0
+                    end
 
                 # Display product information when enter pressed
                 when "i", 10, Curses::Key::RIGHT
@@ -542,6 +579,7 @@ def main
 
                 # Escape
                 when 27
+                    Curses.flushinp if Curses.respond_to?(:flushinp)
                     ui.draw("Uusimmat tuotteet")
                     products = original_products.dup
 
