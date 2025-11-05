@@ -612,7 +612,9 @@ def main
                 # Display product information when enter pressed
                 when "i", 10, Curses::Key::RIGHT
                     product_info = Verkkis::ProductInfo.new
-                    product_info.view(ui, products[current_product])
+                    selected_product = products[current_product]
+                    price_history = data.get_product_price_history(selected_product['id'])
+                    product_info.view(ui, selected_product, price_history)
 
                 # List manufacturers when pressing "v"
                 when "v"
