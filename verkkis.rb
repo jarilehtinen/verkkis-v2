@@ -327,47 +327,162 @@ def main
 
                 # Search
                 when "e"
-                    ui.draw('Etsi tuotetta')
-                    y_center = Config.max_lines / 2
-                    box_width = [[Config.max_cols - 4, 80].min, 30].max
-                    box_height = 4
-                    box_left = [[(Config.max_cols - box_width) / 2, 0].max, Config.max_cols - box_width - 1].min
-                    box_top = [[y_center - 2, 0].max, Config.max_lines - box_height - 1].min
-
-                    ui.box(box_height, box_width, box_top, box_left)
-
-                    input_width = box_width - 4
-                    input_left = box_left + 2
-                    input_top = box_top + 2
                     prompt = "Etsi: "
+                    y_center = Config.max_lines / 2
+                    box_height = 4
 
-                    win_search = Curses::Window.new(1, input_width, input_top, input_left)
+                    initial_box_width = [[Config.max_cols - 4, 80].min, 30].max
+                    half_box_width = (initial_box_width * 0.5).floor
+                    min_box_width = [prompt.length + 6, 20].max
+                    max_box_width = [Config.max_cols - 4, min_box_width].max
+                    box_width = [[half_box_width, min_box_width].max, max_box_width].min
+                    input_width = box_width - 4
 
-                    win_search.attron(Curses.color_pair(1)) do
-                        win_search.erase
-                        win_search.setpos(0, 0)
-                        win_search.addstr(prompt)
-                        win_search.clrtoeol
+                    search_term = ""
+                    cursor_pos = 0
+                    display_offset = 0
+                    dirty_layout = true
+                    win_search = nil
+
+                    backspace_keys = [127]
+                    backspace_keys << Curses::Key::BACKSPACE if defined?(Curses::Key::BACKSPACE)
+                    delete_key = defined?(Curses::Key::DC) ? Curses::Key::DC : nil
+                    left_key = defined?(Curses::Key::LEFT) ? Curses::Key::LEFT : nil
+                    right_key = defined?(Curses::Key::RIGHT) ? Curses::Key::RIGHT : nil
+                    resize_key = defined?(Curses::Key::RESIZE) ? Curses::Key::RESIZE : nil
+                    enter_keys = [10]
+                    enter_keys << Curses::Key::ENTER if defined?(Curses::Key::ENTER)
+
+                    calculate_layout = lambda do |width|
+                        box_top = [[y_center - 2, 0].max, Config.max_lines - box_height - 1].min
+                        box_left = [[(Config.max_cols - width) / 2, 0].max, Config.max_cols - width - 1].min
+                        input_top = box_top + 2
+                        input_left = box_left + 2
+                        [box_top, box_left, input_top, input_left]
                     end
 
-                    win_search.setpos(0, prompt.length)
-                    win_search.refresh
+                    render_layout = lambda do
+                        box_top, box_left, input_top, input_left = calculate_layout.call(box_width)
+                        Curses.clear
+                        ui.draw('Etsi tuotetta')
+                        ui.box(box_height, box_width, box_top, box_left)
+                        window = Curses::Window.new(1, input_width, input_top, input_left)
+                        window.keypad(true)
+                        [window, box_top, box_left, input_top, input_left]
+                    end
+
+                    refresh_input = lambda do
+                        return unless win_search
+
+                        available_space = input_width - prompt.length
+                        available_space = 1 if available_space <= 0
+
+                        if cursor_pos < display_offset
+                            display_offset = cursor_pos
+                        elsif cursor_pos - display_offset > available_space
+                            display_offset = cursor_pos - available_space
+                        elsif search_term.length - display_offset < available_space
+                            display_offset = [search_term.length - available_space, 0].max
+                        end
+
+                        visible_term = search_term[display_offset, available_space] || ""
+
+                        win_search.attron(Curses.color_pair(1)) do
+                            win_search.erase
+                            win_search.setpos(0, 0)
+                            win_search.addstr(prompt)
+                            win_search.addstr(visible_term)
+                            win_search.addstr(" " * [available_space - visible_term.length, 0].max)
+                        end
+
+                        cursor_column = prompt.length + cursor_pos - display_offset
+                        cursor_column = prompt.length if cursor_column < prompt.length
+                        cursor_column = prompt.length + available_space if cursor_column > prompt.length + available_space
+                        win_search.setpos(0, cursor_column)
+                        win_search.refresh
+                    end
 
                     begin
                         Curses.curs_set(1)
-                        Curses.echo
-                        # Read search term
-                        search_term = win_search.getstr
-                    ensure
                         Curses.noecho
+
+                        loop do
+                            max_box_width = [Config.max_cols - 4, min_box_width].max
+                            adjusted_box_width = [[box_width, max_box_width].min, min_box_width].max
+
+                            if adjusted_box_width != box_width
+                                box_width = adjusted_box_width
+                                input_width = box_width - 4
+                                dirty_layout = true
+                            else
+                                input_width = box_width - 4
+                            end
+
+                            if dirty_layout
+                                win_search, _box_top, _box_left, _input_top, _input_left = render_layout.call
+                                dirty_layout = false
+                            end
+
+                            refresh_input.call
+
+                            ch = win_search.getch
+                            break if ch.nil?
+
+                            if resize_key && ch == resize_key
+                                dirty_layout = true
+                                next
+                            end
+
+                            if enter_keys.include?(ch)
+                                break
+                            elsif backspace_keys.include?(ch)
+                                if cursor_pos > 0
+                                    search_term.slice!(cursor_pos - 1)
+                                    cursor_pos -= 1
+                                end
+                            elsif delete_key && ch == delete_key
+                                search_term.slice!(cursor_pos) if cursor_pos < search_term.length
+                            elsif left_key && ch == left_key
+                                cursor_pos -= 1 if cursor_pos > 0
+                            elsif right_key && ch == right_key
+                                cursor_pos += 1 if cursor_pos < search_term.length
+                            else
+                                character = nil
+
+                                if ch.is_a?(String)
+                                    character = ch
+                                elsif ch.is_a?(Integer) && ch >= 32 && ch <= 126
+                                    character = ch.chr
+                                end
+
+                                if character
+                                    search_term.insert(cursor_pos, character)
+                                    cursor_pos += 1
+                                end
+                            end
+
+                            cursor_pos = 0 if cursor_pos.negative?
+                            cursor_pos = search_term.length if cursor_pos > search_term.length
+
+                            needed_input_width = prompt.length + search_term.length + 1
+                            if needed_input_width > input_width && box_width < max_box_width
+                                new_box_width = [needed_input_width + 4, max_box_width].min
+                                if new_box_width > box_width
+                                    box_width = new_box_width
+                                    input_width = box_width - 4
+                                    dirty_layout = true
+                                end
+                            end
+                        end
+                    ensure
                         Curses.curs_set(0)
+                        Curses.noecho
                     end
 
                     if search_term.length > 0
                         products = original_products.select { |product| product['name'].downcase.include?(search_term.downcase) }
                         ui.draw("Haku: " + search_term)
                     else
-                        # Reset
                         products = original_products.dup
                         ui.draw("Uusimmat tuotteet")
                     end
