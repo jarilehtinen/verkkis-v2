@@ -661,17 +661,34 @@ def main
                 # Escape
                 when 27
                     Curses.flushinp if Curses.respond_to?(:flushinp)
+
+                    default_view_active = (
+                        show == "added" &&
+                        manufacturer_filter.nil? &&
+                        manufacturer_prev_state.nil? &&
+                        order == "desc" &&
+                        start_row.zero? &&
+                        selection_position.zero? &&
+                        current_product.zero? &&
+                        (search_term.to_s.empty?) &&
+                        products == original_products
+                    )
+
                     if show == "manufacturer"
                         select_manufacturer.call(ui.current_title, capture_previous: false)
+                    elsif default_view_active
+                        break
                     else
                         manufacturer_filter = nil
                         manufacturer_prev_state = nil
-                        ui.draw("Uusimmat tuotteet")
-                        products = original_products.dup
-
+                        search_term = ""
+                        show = "added"
+                        order = "desc"
                         start_row = 0
                         selection_position = 0
                         current_product = 0
+                        ui.draw("Uusimmat tuotteet")
+                        products = original_products.dup
                     end
 
                 when 'q'
