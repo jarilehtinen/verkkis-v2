@@ -1,4 +1,5 @@
 require 'curses'
+require 'io/console'
 require 'launchy'
 require 'json'
 require_relative 'lib/config'
@@ -49,6 +50,7 @@ def main
         order = "desc"
         manufacturer_filter = nil
         manufacturer_prev_state = nil
+        resize_pending = false
 
         # Lines and cols
         Config.max_lines = Curses.lines
@@ -130,12 +132,7 @@ def main
 
         # Listen to terminal resize
         Signal.trap("SIGWINCH") do
-            # Toimenpiteet terminaalin koon muuttuessa
-            Config.max_lines = Curses.lines
-            Config.max_cols = Curses.cols
-            Curses.clear
-            ui.draw("")
-            Curses.refresh
+            resize_pending = true
         end
 
         # Create window for products
@@ -144,6 +141,61 @@ def main
         win = Curses::Window.new(window_height, Config.max_cols - 3, 1, 1)
 
         loop do
+            if resize_pending
+                resize_pending = false
+
+                lines, cols = begin
+                    IO.console.winsize
+                rescue StandardError
+                    [0, 0]
+                end
+
+                if lines.to_i <= 0 || cols.to_i <= 0
+                    lines = Curses.lines
+                    cols = Curses.cols
+                end
+
+                if lines.to_i <= 0 || cols.to_i <= 0
+                    lines = Config.max_lines
+                    cols = Config.max_cols
+                end
+
+                lines = lines.to_i
+                cols = cols.to_i
+                lines = 1 if lines < 1
+                cols = 1 if cols < 1
+
+                Config.max_lines = lines
+                Config.max_cols = cols
+
+                if Curses.respond_to?(:resizeterm)
+                    begin
+                        Curses.resizeterm(lines, cols)
+                    rescue StandardError
+                        # Ignore resize errors, we'll fall back to current size
+                    end
+                end
+
+                if win
+                    new_height = [Config.max_lines - Config.ui_bottom_lines - 2, 1].max
+                    new_width = [Config.max_cols - 3, 1].max
+
+                    begin
+                        win.resize(new_height, new_width)
+                    rescue StandardError
+                        win.close if win.respond_to?(:close)
+                        win = Curses::Window.new(new_height, new_width, 1, 1)
+                    end
+
+                    win.clear
+                    win.refresh
+                end
+
+                Curses.clear
+                ui.draw("")
+                Curses.refresh
+            end
+
             win.erase
 
             # Define products settings
