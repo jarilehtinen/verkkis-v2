@@ -153,6 +153,41 @@ def main
             # Text widths/positions
             title_col_width = Config.max_cols - 12
             price_col_start = title_col_width - 11
+            format_price = lambda do |value|
+                return "" if value.nil?
+                numeric = value.to_f
+                if (numeric % 1).zero?
+                    numeric.to_i.to_s
+                else
+                    numeric.round(2).to_s
+                end
+            end
+            shorten_price_value = lambda do |value|
+                numeric = value.to_f
+                suffix = nil
+                divisor = 1.0
+
+                if numeric >= 1_000_000
+                    suffix = "M"
+                    divisor = 1_000_000.0
+                elsif numeric >= 10_000
+                    suffix = "k"
+                    divisor = 1_000.0
+                end
+
+                text = if suffix
+                    scaled = numeric / divisor
+                    precision = scaled >= 10 ? 0 : 1
+                    result = scaled.round(precision)
+                    str = result.to_s
+                    str = str.sub(/\.0$/, "")
+                    "#{str}#{suffix}"
+                else
+                    format_price.call(value)
+                end
+
+                text
+            end
 
             # No products
             if products.empty?
@@ -210,7 +245,26 @@ def main
                     price_diff = 0
                     previous_price = 0
 
-                    if price_history.length > 0
+                    if show == "price_drop" && product['price_drop']
+                        previous_price = product['price_drop_from']
+                        current_price_for_drop = product['price_drop_to']
+                        price_diff = product['price_drop']
+                        drop_percent = product['price_drop_percent'] || 0
+                        drop_percent_display = drop_percent.round
+                        shortened_previous = shorten_price_value.call(previous_price)
+                        shortened_current = shorten_price_value.call(current_price_for_drop)
+
+                        variants = [
+                            "#{format_price.call(previous_price)} → #{format_price.call(current_price_for_drop)} € (▼ #{drop_percent_display}%)",
+                            "#{format_price.call(previous_price)} → #{format_price.call(current_price_for_drop)} € (▼#{drop_percent_display}%)",
+                            "#{shortened_previous} → #{shortened_current} € (▼ #{drop_percent_display}%)",
+                            "#{shortened_previous} → #{shortened_current} € (▼#{drop_percent_display}%)",
+                            "#{shortened_previous} → #{shortened_current}€ (▼#{drop_percent_display}%)"
+                        ]
+
+                        price_text = variants.find { |text| text.length <= 20 } || variants.last[0, 20]
+                        price_text[-1] = ")" unless price_text.end_with?(")")
+                    elsif price_history.length > 0
                         if price_history.length > 1
                             previous_price = price_history[-2]["price"]
                         elsif price_history.length == 1
@@ -401,6 +455,19 @@ def main
                     if order == "desc"
                         products.reverse!
                     end
+
+                    start_row = 0
+                    selection_position = 0
+                    current_product = 0
+
+                # Show biggest price drops
+                when "n", "N"
+                    ui.draw("Suurimmat hinnanlaskut")
+
+                    products = data.top_price_drops(original_products, 200)
+                    show = "price_drop"
+                    manufacturer_filter = nil
+                    manufacturer_prev_state = nil
 
                     start_row = 0
                     selection_position = 0

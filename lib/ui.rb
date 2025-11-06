@@ -87,17 +87,18 @@ module Verkkis
             Curses.clrtoeol
 
             texts = {
-                "1": "Uusimmat",
+                "1": "Uudet",
                 "2": "Haussa",
                 "3": "Suosikit",
                 "4": "A-Ö",
                 "5": "Hinta",
+                "N": "Hinnanlaskut",
                 "E": "Etsi",
                 "T": "Tallenna haku",
-                "H": "Tallennetut haut",
+                "H": "Haut",
                 "V": "Valmistajat",
                 ".": "Suosikki",
-                "O": "Avaa selaimeen",
+                "O": "Tuotesivu",
                 "P": "Päivitä",
                 "Q": "Lopeta"
             }

@@ -80,6 +80,36 @@ module Verkkis
             @price_history[product_id.to_s] || []
         end
 
+        # Return products with the largest price drops
+        def top_price_drops(products, limit = 200)
+            # Build lookup to match history entries against current product data
+            indexed_products = products.each_with_object({}) do |product, memo|
+                memo[product['id'].to_s] = product
+            end
+
+            drops = @price_history.each_with_object([]) do |(product_id, entries), acc|
+                product = indexed_products[product_id]
+                next unless product
+                next if entries.nil? || entries.empty?
+
+                max_price = entries.map { |entry| entry['price'].to_f }.max
+                current_price = product['price'].to_f
+                drop_amount = max_price - current_price
+                drop_percent = max_price.positive? ? ((drop_amount / max_price) * 100.0) : 0.0
+
+                next unless drop_amount.positive? && drop_percent.positive?
+
+                acc << product.merge(
+                    'price_drop' => drop_amount.round(2),
+                    'price_drop_from' => max_price,
+                    'price_drop_to' => current_price,
+                    'price_drop_percent' => drop_percent
+                )
+            end
+
+            drops.sort_by { |item| [-item['price_drop'].to_f, -item['price_drop_percent'].to_f] }.first(limit)
+        end
+
         # Update data
         def update_data
             debug_log("Starting data update")
