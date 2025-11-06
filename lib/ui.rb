@@ -7,8 +7,10 @@ module Verkkis
         end
 
         def draw(title_text)
+            box_height = Config.max_lines - Config.ui_bottom_lines - 1
+            box_height = 0 if box_height < 0
             box(
-                Config.max_lines - Config.ui_bottom_lines,
+                box_height,
                 Config.max_cols,
                 0,
                 0
@@ -83,9 +85,6 @@ module Verkkis
 
         # Print help
         def help()
-            Curses.setpos(Config.max_lines - 1, 0)
-            Curses.clrtoeol
-
             texts = {
                 "1": "Uudet",
                 "2": "Haussa",
@@ -103,20 +102,48 @@ module Verkkis
                 "Q": "Lopeta"
             }
 
-            y_pos = Config.max_lines - 1
-            text_pos = 1
+            bottom_start = Config.max_lines - Config.ui_bottom_lines
+            bottom_start = 0 if bottom_start < 0
+            bottom_start.upto(Config.max_lines - 1) do |line|
+                Curses.setpos(line, 0)
+                Curses.clrtoeol
+            end
+
+            lines = [[]]
+            line_widths = [1]
 
             texts.each do |id, text|
-                Curses.attron(Curses.color_pair(2)) do
-                    Curses.setpos(y_pos, text_pos)
-                    text_pos += id.length + 3
-                    Curses.addstr(" #{id.to_s} ")
+                id_str = " #{id} "
+                entry_width = id_str.length + text.length + 2
+
+                if line_widths.last + entry_width > Config.max_cols
+                    break if lines.length >= Config.ui_bottom_lines
+                    lines << []
+                    line_widths << 1
                 end
 
-                Curses.attron(Curses.color_pair(1)) do
-                    Curses.setpos(y_pos, text_pos)
+                lines.last << [id_str, text]
+                line_widths[-1] += entry_width
+            end
+
+            lines.each_with_index do |line_entries, index|
+                y_pos = bottom_start + index
+                text_pos = 1
+
+                line_entries.each do |id_str, text|
+                    Curses.attron(Curses.color_pair(2)) do
+                        Curses.setpos(y_pos, text_pos)
+                        Curses.addstr(id_str)
+                    end
+
+                    text_pos += id_str.length + 1
+
+                    Curses.attron(Curses.color_pair(1)) do
+                        Curses.setpos(y_pos, text_pos)
+                        Curses.addstr(text)
+                    end
+
                     text_pos += text.length + 1
-                    Curses.addstr(text)
                 end
             end
 

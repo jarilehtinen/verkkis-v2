@@ -139,13 +139,16 @@ def main
         end
 
         # Create window for products
-        win = Curses::Window.new(Config.max_lines - Config.ui_bottom_lines - 1, Config.max_cols - 3, 1, 1)
+        window_height = Config.max_lines - Config.ui_bottom_lines - 2
+        window_height = 1 if window_height < 1
+        win = Curses::Window.new(window_height, Config.max_cols - 3, 1, 1)
 
         loop do
             win.erase
 
             # Define products settings
-            max_products = Config.max_lines - Config.ui_bottom_lines - 1
+            max_products = Config.max_lines - Config.ui_bottom_lines - 2
+            max_products = 1 if max_products < 1
 
             # Get favorites
             favorite_products = favorites.get_favorites(original_products)

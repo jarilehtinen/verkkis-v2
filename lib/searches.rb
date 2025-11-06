@@ -54,7 +54,9 @@ module Verkkis
         def list(ui)
             ui.draw("Tallennetut haut")
 
-            win = Curses::Window.new(Config.max_lines - Config.ui_bottom_lines - 1, Config.max_cols - 3, 1, 1)
+            window_height = Config.max_lines - Config.ui_bottom_lines - 2
+            window_height = 1 if window_height < 1
+            win = Curses::Window.new(window_height, Config.max_cols - 3, 1, 1)
             win.erase
 
             searches = get_searches

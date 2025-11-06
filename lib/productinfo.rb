@@ -5,7 +5,9 @@ module Verkkis
             ui.draw(product['name'])
             price_changes = normalize_price_history(price_history)
 
-            win = Curses::Window.new(Config.max_lines - Config.ui_bottom_lines - 1, Config.max_cols - 3, 1, 1)
+            window_height = Config.max_lines - Config.ui_bottom_lines - 2
+            window_height = 1 if window_height < 1
+            win = Curses::Window.new(window_height, Config.max_cols - 3, 1, 1)
 
             loop do
                 win.erase

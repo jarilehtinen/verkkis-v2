@@ -8,7 +8,8 @@ module Verkkis
 
             current_manufacturer = 0
             win = nil
-            window_height = Config.max_lines - Config.ui_bottom_lines - 1
+            window_height = Config.max_lines - Config.ui_bottom_lines - 2
+            window_height = 1 if window_height < 1
             window_width = Config.max_cols - 3
             max_rows = window_height
             max_rows = 1 if max_rows < 1
