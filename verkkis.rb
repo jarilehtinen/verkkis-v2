@@ -832,6 +832,25 @@ def main
                 when 'q'
                     break
             end
+
+            # Keep paging bounds sane after handling input
+            max_start_row = [products.length - max_products, 0].max
+            start_row = [[start_row, 0].max, max_start_row].min
+
+            visible_count = [products.length - start_row, max_products].min
+            visible_count = 0 if visible_count.negative?
+
+            if visible_count.zero?
+                selection_position = 0
+                current_product = 0
+            else
+                selection_position = [[selection_position, 0].max, visible_count - 1].min
+                current_product = start_row + selection_position
+                if current_product >= products.length
+                    current_product = products.length - 1
+                    selection_position = [current_product - start_row, 0].max
+                end
+            end
         end
     ensure
         Curses.close_screen
