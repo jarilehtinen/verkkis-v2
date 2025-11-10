@@ -523,7 +523,7 @@ def main
                     current_product = 0
 
                 # Show biggest price drops
-                when "n", "N"
+                when "6"
                     ui.draw("Suurimmat hinnanlaskut")
 
                     products = data.top_price_drops(original_products, 200)
@@ -803,7 +803,7 @@ def main
                     ui.draw("")
 
                 # Open product page in browser
-                when "o"
+                when "a"
                     product = products[current_product]
                     Launchy.open("https://www.verkkokauppa.com/fi/outlet/yksittaiskappaleet/#{product['id']}")
 

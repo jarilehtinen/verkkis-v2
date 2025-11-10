@@ -85,23 +85,6 @@ module Verkkis
 
         # Print help
         def help()
-            texts = {
-                "1": "Uudet",
-                "2": "Haussa",
-                "3": "Suosikit",
-                "4": "A-Ö",
-                "5": "Hinta",
-                "N": "Hintamuutos",
-                "E": "Etsi",
-                "T": "Tallenna haku",
-                "H": "Haut",
-                "V": "Valmistajat",
-                ".": "Suosikki",
-                "O": "Tuotesivu",
-                "P": "Päivitä",
-                "Q": "Lopeta"
-            }
-
             bottom_start = Config.max_lines - Config.ui_bottom_lines
             bottom_start = 0 if bottom_start < 0
             bottom_start.upto(Config.max_lines - 1) do |line|
@@ -109,28 +92,19 @@ module Verkkis
                 Curses.clrtoeol
             end
 
-            lines = [[]]
-            line_widths = [1]
-
-            texts.each do |id, text|
-                id_str = " #{id} "
-                entry_width = id_str.length + text.length + 2
-
-                if line_widths.last + entry_width > Config.max_cols
-                    break if lines.length >= Config.ui_bottom_lines
-                    lines << []
-                    line_widths << 1
-                end
-
-                lines.last << [id_str, text]
-                line_widths[-1] += entry_width
-            end
+            lines = Config.help_rows || []
+            lines = lines.first(Config.ui_bottom_lines)
 
             lines.each_with_index do |line_entries, index|
                 y_pos = bottom_start + index
                 text_pos = 1
 
-                line_entries.each do |id_str, text|
+                line_entries.each do |entry|
+                    key = entry[:key] || entry["key"]
+                    text = entry[:label] || entry["label"]
+                    next if key.nil? || text.nil?
+
+                    id_str = " #{key} "
                     Curses.attron(Curses.color_pair(2)) do
                         Curses.setpos(y_pos, text_pos)
                         Curses.addstr(id_str)
