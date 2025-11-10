@@ -91,7 +91,7 @@ module Verkkis
                 "3": "Suosikit",
                 "4": "A-Ö",
                 "5": "Hinta",
-                "N": "Hinnanlaskut",
+                "N": "Hintamuutos",
                 "E": "Etsi",
                 "T": "Tallenna haku",
                 "H": "Haut",

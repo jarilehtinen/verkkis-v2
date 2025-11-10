@@ -123,7 +123,7 @@ module Verkkis
             if price_changes.length <= 1
                 win.attron(Curses.color_pair(5)) do
                     win.setpos(chart_body_top, chart_left)
-                    win.addstr(price_changes.empty? ? "Hintahistoria ei ole saatavilla." : "Hintamuutoksia ei ole.")
+                    win.addstr(price_changes.empty? ? "Hintahistoria ei ole saatavilla." : "Ei hintamuutoksia.")
                 end
                 return
             end
