@@ -1,5 +1,6 @@
 module Verkkis
     class UI
+        HELP_KEY_COLOR_PAIR = 11
         last_title = ""
 
         def current_title
@@ -94,30 +95,73 @@ module Verkkis
 
             lines = Config.help_rows || []
             lines = lines.first(Config.ui_bottom_lines)
+            help_key_attr = Curses.color_pair(HELP_KEY_COLOR_PAIR) | Curses::A_BOLD
+            help_label_attr = Curses.color_pair(1)
+            default_separator = Config.help_separator.to_s
 
-            lines.each_with_index do |line_entries, index|
-                y_pos = bottom_start + index
-                text_pos = 1
+            max_columns = lines.map(&:length).max.to_i
+            column_widths = Array.new(max_columns, 0)
 
-                line_entries.each do |entry|
+            lines.each do |line_entries|
+                line_entries.each_with_index do |entry, index|
                     key = entry[:key] || entry["key"]
                     text = entry[:label] || entry["label"]
                     next if key.nil? || text.nil?
 
                     id_str = " #{key} "
-                    Curses.attron(Curses.color_pair(2)) do
+                    entry_width = id_str.length + 1 + text.length
+                    column_widths[index] = [column_widths[index], entry_width].max
+                end
+            end
+
+            lines.each_with_index do |line_entries, index|
+                y_pos = bottom_start + index
+                text_pos = 1
+
+                line_entries.each_with_index do |entry, entry_index|
+                    key = entry[:key] || entry["key"]
+                    text = entry[:label] || entry["label"]
+                    next if key.nil? || text.nil?
+
+                    id_str = " #{key} "
+                    Curses.attron(help_key_attr) do
                         Curses.setpos(y_pos, text_pos)
                         Curses.addstr(id_str)
                     end
 
-                    text_pos += id_str.length + 1
+                    text_pos += id_str.length
 
-                    Curses.attron(Curses.color_pair(1)) do
+                    Curses.attron(help_label_attr) do
+                        Curses.setpos(y_pos, text_pos)
+                        Curses.addstr(" ")
+                        text_pos += 1
+
                         Curses.setpos(y_pos, text_pos)
                         Curses.addstr(text)
                     end
 
-                    text_pos += text.length + 1
+                    text_pos += text.length
+
+                    entry_width = id_str.length + 1 + text.length
+                    column_width = column_widths[entry_index] || entry_width
+                    padding = column_width - entry_width
+                    if padding.positive?
+                        Curses.attron(help_label_attr) do
+                            Curses.setpos(y_pos, text_pos)
+                            Curses.addstr(" " * padding)
+                        end
+                        text_pos += padding
+                    end
+
+                    separator = entry[:separator] || entry["separator"] || default_separator
+                    next if separator.to_s.empty? || entry_index == line_entries.length - 1
+
+                    Curses.attron(help_label_attr) do
+                        Curses.setpos(y_pos, text_pos)
+                        Curses.addstr(separator)
+                    end
+
+                    text_pos += separator.length
                 end
             end
 

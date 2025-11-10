@@ -7,18 +7,19 @@ module Config
             { key: "4", label: "A-Ö" },
             { key: "5", label: "Hinta" },
             { key: "6", label: "Eniten alennusta" },
-            { key: "H", label: "Tallennetut haut" },
+            { key: "H", label: "Hakusanat" },
             { key: "V", label: "Valmistajat" }
         ],
         [
             { key: "E", label: "Etsi" },
             { key: ".", label: "Suosikki" },
-            { key: "A", label: "Avaa tuotesivu" },
+            { key: "A", label: "Avaa linkki" },
             { key: "P", label: "Päivitä" },
             { key: "Q", label: "Lopeta" }
         ]
     ]
 
+    @help_separator = "  "
     @ui_bottom_lines = @help_rows.length
     @max_lines = 2
     @max_cols = 2
@@ -30,6 +31,14 @@ module Config
     def self.help_rows=(value)
         @help_rows = value
         @ui_bottom_lines = value.length if value.respond_to?(:length)
+    end
+
+    def self.help_separator
+        @help_separator
+    end
+
+    def self.help_separator=(value)
+        @help_separator = value
     end
 
     def self.ui_bottom_lines
