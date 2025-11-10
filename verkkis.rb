@@ -51,6 +51,7 @@ def main
         manufacturer_filter = nil
         manufacturer_prev_state = nil
         resize_pending = false
+        pending_key = nil
 
         # Lines and cols
         Config.max_lines = Curses.lines
@@ -361,7 +362,13 @@ def main
             win.refresh
 
             # Handle keypresses
-            key = Curses.getch
+            key = if pending_key.nil?
+                Curses.getch
+            else
+                next_key = pending_key
+                pending_key = nil
+                next_key
+            end
 
             case key
                 # Key up
@@ -532,10 +539,14 @@ def main
                 when "h"
                     searches = Verkkis::Searches.new
 
-                    # loop do
-                    search_term = searches.list(ui)
+                    search_result, forwarded_key = searches.list(ui)
 
-                    if search_term
+                    if forwarded_key
+                        pending_key = forwarded_key
+                    end
+
+                    if search_result
+                        search_term = search_result
                         products = original_products.select { |product| product['name'].downcase.include?(search_term.downcase) }
                         manufacturer_filter = nil
                         manufacturer_prev_state = nil

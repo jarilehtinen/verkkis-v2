@@ -62,10 +62,14 @@ module Verkkis
             searches = get_searches
             selected_search = 0
 
+            delete_keys = ["d", 127]
+            delete_keys << Curses::Key::BACKSPACE if defined?(Curses::Key::BACKSPACE)
+            delete_keys << Curses::Key::DC if defined?(Curses::Key::DC)
+            enter_keys = [10]
+            enter_keys << Curses::Key::ENTER if defined?(Curses::Key::ENTER)
+
             loop do
-                delete_keys = ["d", 127]
-                delete_keys << Curses::Key::BACKSPACE if defined?(Curses::Key::BACKSPACE)
-                delete_keys << Curses::Key::DC if defined?(Curses::Key::DC)
+                win.erase
 
                 if searches
                     searches.each_with_index do |search_term, i|
@@ -79,7 +83,10 @@ module Verkkis
 
                 win.refresh
 
-                case Curses.getch
+                input = Curses.getch
+                next if input.nil?
+
+                case input
                     # Down: move down
                     when Curses::Key::DOWN
                         selected_search += 1 if selected_search < searches.length - 1
@@ -104,15 +111,21 @@ module Verkkis
                         end
 
                     # Enter: search products with given term
-                    when 10
+                    when *enter_keys
+                        next if searches.empty?
                         ui.draw("Haku: #{searches[selected_search]}")
-                        return searches[selected_search]
+                        return [searches[selected_search], nil]
 
                     # Q: quit
                     when "q", 27
-                        break
+                        return [nil, nil]
+
+                    else
+                        return [nil, input]
                 end
             end
+
+            [nil, nil]
         end
     end
 end
