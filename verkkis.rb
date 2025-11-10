@@ -525,7 +525,7 @@ def main
 
                 # Show biggest price drops
                 when "6"
-                    ui.draw("Suurimmat hinnanlaskut")
+                    ui.draw("Eniten alennetut tuotteet")
 
                     products = data.top_price_drops(original_products, 200)
                     show = "price_drop"
