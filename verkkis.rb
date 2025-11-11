@@ -53,6 +53,9 @@ def main
         manufacturer_prev_state = nil
         resize_pending = false
         pending_key = nil
+        favorite_delete_keys = [127, 8]
+        favorite_delete_keys << Curses::Key::BACKSPACE if defined?(Curses::Key::BACKSPACE)
+        favorite_delete_keys << Curses::Key::DC if defined?(Curses::Key::DC)
 
         # Lines and cols
         Config.max_lines = Curses.lines
@@ -206,6 +209,16 @@ def main
 
             # Get favorites
             favorite_products = favorites.get_favorites(original_products)
+            handle_favorite_toggle = lambda do |target_product|
+                next unless target_product
+
+                favorites.favorite_product(target_product)
+                favorite_products = favorites.get_favorites(original_products)
+                if show == "favorites"
+                    products = favorites.resolved_favorite_products(original_products)
+                end
+                ui.draw("")
+            end
 
             # Text widths/positions
             row_width = [Config.max_cols - 4, 20].max
@@ -831,9 +844,10 @@ def main
 
                 # Favorite item
                 when "."
-                    product = products[current_product]
-                    favorites.favorite_product(product)
-                    ui.draw("")
+                    handle_favorite_toggle.call(products[current_product])
+
+                when *favorite_delete_keys
+                    handle_favorite_toggle.call(products[current_product]) if show == "favorites"
 
                 # Save search
                 when "t"
