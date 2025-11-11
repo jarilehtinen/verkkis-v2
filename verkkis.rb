@@ -9,6 +9,7 @@ require_relative 'lib/searches'
 require_relative 'lib/ui'
 require_relative 'lib/manufacturers'
 require_relative 'lib/productinfo'
+require_relative 'lib/fuzzy_search'
 
 def main
     ENV['ESCDELAY'] = '25'
@@ -599,7 +600,7 @@ def main
 
                     if search_result
                         search_term = search_result
-                        products = original_products.select { |product| product['name'].downcase.include?(search_term.downcase) }
+                        products = Verkkis::FuzzySearch.search_products(original_products, search_term)
                         manufacturer_filter = nil
                         manufacturer_prev_state = nil
                     end
@@ -625,6 +626,67 @@ def main
                     dirty_layout = true
                     win_search = nil
                     search_cancelled = false
+                    current_box_top = nil
+                    current_box_left = nil
+                    current_input_top = nil
+                    current_input_left = nil
+                    cleanup_search_ui = lambda do
+                        if current_box_top && current_box_left && box_width && box_height
+                            top = [current_box_top, 0].max
+                            bottom = [current_box_top + box_height, Config.max_lines - 1].min
+                            left = [current_box_left, 0].max
+                            width = [box_width, Config.max_cols - left].min
+
+                            (top..bottom).each do |row|
+                                Curses.setpos(row, left)
+                                Curses.addstr(" " * width)
+                            end
+                        else
+                            Curses.clear
+                        end
+
+                        Curses.refresh
+                    end
+                    search_animation = lambda do
+                        animation_win = nil
+                        return unless current_box_top && current_box_left && box_width && box_height
+
+                        frames = %w[| / - \\]
+                        animation_steps = frames.length * 2
+                        base_message = "Haetaan tuotteita"
+
+                        interior_width = [box_width - 2, 1].max
+                        max_width = [Config.max_cols - (current_box_left + 1), 1].max
+                        animation_width = [[interior_width, base_message.length + 4].max, max_width].min
+
+                        animation_row = current_box_top + (box_height / 2)
+                        animation_row = [animation_row, current_box_top + 1].max
+                        animation_row = [animation_row, current_box_top + box_height - 1].min
+                        animation_col = current_box_left + 1
+
+                        animation_win = Curses::Window.new(1, animation_width, animation_row, animation_col)
+
+                        animation_win.attron(Curses.color_pair(1)) do
+                            animation_steps.times do |i|
+                                frame = frames[i % frames.length]
+                                text = "#{base_message} #{frame}"
+                                padding = [animation_width - text.length, 0].max
+                                left_pad = padding / 2
+                                right_pad = padding - left_pad
+                                line = (" " * left_pad) + text + (" " * right_pad)
+                                animation_win.setpos(0, 0)
+                                animation_win.addstr(line[0, animation_width])
+                                animation_win.refresh
+                                sleep(0.08)
+                            end
+                        end
+                    ensure
+                        if animation_win
+                            animation_win.clear
+                            animation_win.refresh
+                            animation_win.close if animation_win.respond_to?(:close)
+                        end
+                    end
 
                     backspace_keys = [127]
                     backspace_keys << Curses::Key::BACKSPACE if defined?(Curses::Key::BACKSPACE)
@@ -648,6 +710,10 @@ def main
 
                     render_layout = lambda do
                         box_top, box_left, input_top, input_left = calculate_layout.call(box_width)
+                        current_box_top = box_top
+                        current_box_left = box_left
+                        current_input_top = input_top
+                        current_input_left = input_left
                         Curses.clear
                         ui.draw('Etsi tuotetta')
                         ui.box(box_height, box_width, box_top, box_left)
@@ -783,19 +849,23 @@ def main
                         if win_search
                             win_search.clear
                             win_search.refresh
+                            win_search.close if win_search.respond_to?(:close)
                         end
                     end
 
                     if search_cancelled
                         restored_title = previous_title.to_s.empty? ? "Uusimmat tuotteet" : previous_title
-                        Curses.clear
+                        cleanup_search_ui.call
                         ui.draw(restored_title)
                     elsif search_term.length > 0
-                        products = original_products.select { |product| product['name'].downcase.include?(search_term.downcase) }
+                        search_animation.call
+                        cleanup_search_ui.call
+                        products = Verkkis::FuzzySearch.search_products(original_products, search_term)
                         manufacturer_filter = nil
                         manufacturer_prev_state = nil
                         ui.draw("Haku: " + search_term)
                     else
+                        cleanup_search_ui.call
                         products = original_products.dup
                         manufacturer_filter = nil
                         manufacturer_prev_state = nil
