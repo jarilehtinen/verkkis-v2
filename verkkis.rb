@@ -35,7 +35,7 @@ def main
     Curses.init_pair(10, Curses::COLOR_GREEN, Curses::COLOR_WHITE) # Basic
     Curses.init_pair(11, Curses::COLOR_CYAN, Curses::COLOR_BLACK) # Help key highlight
 
-    # Laita window.keypad päälle
+    # Enable keypad mode for the main window
     Curses.stdscr.keypad(true)
     Curses.noecho
 
