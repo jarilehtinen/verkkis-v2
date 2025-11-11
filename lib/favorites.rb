@@ -1,12 +1,12 @@
-require 'set'
-
 module Verkkis
     class Favorites
+        SNAPSHOT_KEYS = %w[id name description price original_price condition].freeze
+
         attr_reader :favorites
 
         # Initialize
         def initialize
-            @favorites = []
+            @favorites = nil
         end
 
         # Get file path
@@ -15,24 +15,22 @@ module Verkkis
         end
 
         # Get the favorites list located in .data/favorites.json
-        def get_favorites(available_products = nil)
-            file_path = get_file_path
+        def get_favorites(_available_products = nil)
+            load_favorites.map { |entry| entry['id'] }
+        end
 
-            favorites = if File.exist?(file_path)
-                JSON.parse(File.read(file_path))
-            else
-                []
+        def resolved_favorite_products(available_products)
+            entries = load_favorites
+            indexed = index_products_by_id(available_products)
+
+            entries.map do |entry|
+                indexed[entry['id']] || build_placeholder(entry)
             end
-
-            favorites = normalize_ids(favorites)
-            favorites = remove_missing_favorites(favorites, available_products)
-
-            @favorites = favorites
-            favorites
         end
 
         # Save data
         def save_data
+            @favorites ||= []
             File.write(get_file_path, JSON.pretty_generate(@favorites))
         rescue StandardError => e
             Curses.setpos(Curses.lines - 1, 0)
@@ -42,38 +40,70 @@ module Verkkis
         end
 
         # Favorite product
-        def favorite_product(id)
-            id = normalize_single_id(id)
+        def favorite_product(product_or_id)
+            id, snapshot = extract_id_and_snapshot(product_or_id)
             return unless id
 
-            # Get favorites
-            @favorites = get_favorites
+            entries = load_favorites
+            existing_index = entries.index { |entry| entry['id'] == id }
 
-            # Remove product if already in favorites
-            if @favorites.include?(id)
-                @favorites.delete(id)
+            if existing_index
+                entries.delete_at(existing_index)
+                @favorites = entries
                 save_data
                 return
             end
 
-            # Add the product to the favorites list located in .data/favorites.json
-            @favorites << id
-
-            # Save the updated favorites list
+            entry = { 'id' => id }
+            entry['snapshot'] = snapshot if snapshot && !snapshot.empty?
+            entries << entry
+            @favorites = entries
             save_data
         end
 
         private
 
-        def normalize_ids(ids)
-            Array(ids).map do |item|
+        def load_favorites
+            return @favorites if @favorites.is_a?(Array)
+
+            file_path = get_file_path
+            favorites = if File.exist?(file_path)
+                JSON.parse(File.read(file_path))
+            else
+                []
+            end
+
+            @favorites = normalize_entries(favorites)
+        end
+
+        def normalize_entries(raw_entries)
+            Array(raw_entries).map do |item|
                 case item
                 when Hash
-                    normalize_single_id(item['id'] || item[:id])
+                    id = normalize_single_id(item['id'] || item[:id])
+                    next unless id
+
+                    snapshot = normalize_snapshot(item['snapshot'] || item[:snapshot])
+                    normalized = { 'id' => id }
+                    normalized['snapshot'] = snapshot if snapshot && !snapshot.empty?
+                    normalized
                 else
-                    normalize_single_id(item)
+                    id = normalize_single_id(item)
+                    id ? { 'id' => id } : nil
                 end
             end.compact
+        end
+
+        def normalize_snapshot(snapshot)
+            return nil unless snapshot.is_a?(Hash)
+
+            snapshot.each_with_object({}) do |(key, value), memo|
+                key_str = key.to_s
+                next unless SNAPSHOT_KEYS.include?(key_str)
+                memo[key_str] = value
+            end.tap do |result|
+                return nil if result.empty?
+            end
         end
 
         def normalize_single_id(identifier)
@@ -89,21 +119,57 @@ module Verkkis
             end
         end
 
-        def remove_missing_favorites(favorites, available_products)
-            return favorites if available_products.nil?
-
-            valid_ids = normalize_ids(available_products)
-            return favorites if valid_ids.empty?
-
-            valid_id_set = valid_ids.to_set
-            filtered_favorites = favorites.select { |fav_id| valid_id_set.include?(fav_id) }
-
-            if filtered_favorites.length != favorites.length
-                @favorites = filtered_favorites
-                save_data
+        def extract_id_and_snapshot(product_or_id)
+            if product_or_id.is_a?(Hash)
+                id = normalize_single_id(product_or_id['id'] || product_or_id[:id])
+                snapshot = snapshot_from_product(product_or_id)
+                [id, snapshot]
+            else
+                [normalize_single_id(product_or_id), nil]
             end
+        end
 
-            filtered_favorites
+        def snapshot_from_product(product)
+            return nil unless product.is_a?(Hash)
+
+            SNAPSHOT_KEYS.each_with_object({}) do |key, memo|
+                value = product[key] || product[key.to_sym]
+                next if value.nil? || (value.respond_to?(:empty?) && value.empty?)
+                memo[key] = value
+            end.tap do |result|
+                return nil if result.empty?
+            end
+        end
+
+        def index_products_by_id(products)
+            Array(products).each_with_object({}) do |product, memo|
+                next unless product.is_a?(Hash)
+
+                identifier = product['id'] || product[:id]
+                id = normalize_single_id(identifier)
+                next unless id
+
+                memo[id] = product
+            end
+        end
+
+        def build_placeholder(entry)
+            snapshot = entry['snapshot'] || {}
+            id = entry['id']
+            name = snapshot['name']
+            name = "Poistunut tuote ##{id}" if name.to_s.strip.empty?
+            description = snapshot['description']
+            description = "Tuote ei ole enää saatavilla." if description.to_s.strip.empty?
+
+            {
+                'id' => id,
+                'name' => name,
+                'description' => description,
+                'price' => snapshot['price'],
+                'original_price' => snapshot['original_price'],
+                'condition' => snapshot['condition'],
+                'missing_favorite' => true
+            }
         end
     end
 end

@@ -240,38 +240,53 @@ def main
                 price_text_limit = max_price_col_width
 
                 row_entries = visible_products.map do |product|
+                    missing_favorite = product['missing_favorite']
                     title_name = product['name'].to_s
-                    price = product['price']
-                    price_text = "#{format_price.call(price)} €"
+                    title_name = "Tuote ##{product['id']}" if title_name.strip.empty?
+                    title_name = "#{title_name} (myyty)" if missing_favorite
 
-                    price_history = data.get_product_price_history(product['id'])
                     price_diff = 0
-                    previous_price = 0
+                    price_text = ""
 
-                    if show == "price_drop" && product['price_drop']
-                        previous_price = product['price_drop_from']
-                        current_price_for_drop = product['price_drop_to']
-                        price_diff = product['price_drop']
-                        price_text = "▼ #{format_price.call(current_price_for_drop)} €"
-                    elsif price_history.length > 0
-                        if price_history.length > 1
-                            previous_price = price_history[-2]["price"]
-                        elsif price_history.length == 1
-                            previous_price = price_history.last["price"]
+                    if missing_favorite
+                        stored_price = product['price']
+                        price_text = if stored_price.nil?
+                            "Ei hintaa"
+                        else
+                            "~ #{format_price.call(stored_price)} €"
+                        end
+                    else
+                        price = product['price']
+                        price_text = "#{format_price.call(price)} €"
+
+                        price_history = data.get_product_price_history(product['id'])
+                        previous_price = 0
+
+                        if show == "price_drop" && product['price_drop']
+                            previous_price = product['price_drop_from']
+                            current_price_for_drop = product['price_drop_to']
+                            price_diff = product['price_drop']
+                            price_text = "▼ #{format_price.call(current_price_for_drop)} €"
+                        elsif price_history.length > 0
+                            if price_history.length > 1
+                                previous_price = price_history[-2]["price"]
+                            elsif price_history.length == 1
+                                previous_price = price_history.last["price"]
+                            end
+
+                            price_diff = previous_price - price
+
+                            if price_diff != 0 && price_diff < 0
+                                price_text = "▲ #{format_price.call(previous_price)} € → #{format_price.call(price)} €"
+                            end
                         end
 
-                        price_diff = previous_price - price
-
-                        if price_diff != 0 && price_diff < 0
-                            price_text = "▲ #{format_price.call(previous_price)} € → #{format_price.call(price)} €"
+                        if price_diff > 0
+                            price_text = "▼ #{format_price.call(price)} €"
                         end
                     end
 
-                    if price_diff > 0
-                        price_text = "▼ #{format_price.call(price)} €"
-                    end
-
-                    price_text = price_text.gsub(".", ",")
+                    price_text = price_text.to_s.gsub(".", ",")
                     if price_text.length > price_text_limit
                         price_text = price_text[-price_text_limit, price_text_limit]
                     end
@@ -280,7 +295,8 @@ def main
                         product: product,
                         title_name: title_name,
                         price_text: price_text,
-                        price_diff: price_diff
+                        price_diff: price_diff,
+                        missing_favorite: missing_favorite
                     }
                 end
 
@@ -300,6 +316,7 @@ def main
                     title_name = entry[:title_name]
                     price_text = entry[:price_text]
                     price_diff = entry[:price_diff]
+                    missing_favorite = entry[:missing_favorite]
                     title_x = title_col_start
                     is_current_row = y == selection_position ? true : false
 
@@ -309,7 +326,11 @@ def main
 
                     # Add star before favorite product title
                     if favorite_products.include?(product['id']) && title_col_width >= 2
-                        color = is_current_row ? 2 : 7
+                        color = if missing_favorite
+                            is_current_row ? 8 : 7
+                        else
+                            is_current_row ? 2 : 7
+                        end
 
                         win.attron(Curses.color_pair(color)) do
                             win.setpos(y, title_x)
@@ -320,7 +341,11 @@ def main
                     end
 
                     # Product title
-                    color = is_current_row ? 2 : 1
+                    color = if missing_favorite
+                        is_current_row ? 8 : 7
+                    else
+                        is_current_row ? 2 : 1
+                    end
 
                     remaining_title_width = title_col_width - (title_x - title_col_start)
                     if remaining_title_width.positive?
@@ -341,7 +366,11 @@ def main
                     end
 
                     # Price color
-                    color = is_current_row ? 2 : 3
+                    color = if missing_favorite
+                        is_current_row ? 8 : 7
+                    else
+                        is_current_row ? 2 : 3
+                    end
 
                     if price_diff > 0
                         color = is_current_row ? 10 : 9
@@ -474,7 +503,7 @@ def main
                     ui.draw("Suosikit")
 
                     favorite_products = favorites.get_favorites(original_products)
-                    products = original_products.select { |product| favorite_products.include?(product['id']) }
+                    products = favorites.resolved_favorite_products(original_products)
 
                     show = "favorites"
                     manufacturer_filter = nil
@@ -803,7 +832,7 @@ def main
                 # Favorite item
                 when "."
                     product = products[current_product]
-                    favorites.favorite_product(product['id'])
+                    favorites.favorite_product(product)
                     ui.draw("")
 
                 # Save search

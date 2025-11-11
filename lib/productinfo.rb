@@ -2,7 +2,10 @@ module Verkkis
     class ProductInfo
         def view(ui, product, price_history)
             previous_title = ui.current_title
-            ui.draw(product['name'])
+            title = product['name'].to_s.strip
+            title = "Tuote ##{product['id']}" if title.empty?
+            ui.draw(title)
+            missing_favorite = product['missing_favorite']
             price_changes = normalize_price_history(price_history)
 
             window_height = Config.max_lines - Config.ui_bottom_lines - 2
@@ -14,7 +17,10 @@ module Verkkis
 
                 win.attron(Curses.color_pair(5) | Curses::A_BOLD) do
                     win.setpos(1, 3)
-                    win.addstr("#{product['name']}")
+                    win.addstr(title)
+                    if missing_favorite
+                        win.addstr(" (myyty)")
+                    end
                 end
 
                 condition_row = nil
@@ -23,7 +29,7 @@ module Verkkis
                     description_start_y = 3
                     description_start_x = 3
                     description_width = [win.maxx - description_start_x - 1, 1].max
-                    description_lines = wrap_text_to_width(product['description'], description_width)
+                    description_lines = wrap_text_to_width(description_text(product, missing_favorite), description_width)
 
                     unless description_lines.empty?
                         win.setpos(description_start_y, description_start_x)
@@ -36,16 +42,12 @@ module Verkkis
                     price_row = [price_row_default, description_start_y + lines_written + 1].max
 
                     win.setpos(price_row, description_start_x)
-                    text = "Hinta:  #{product['price']} €"
-
-                    if product['original_price']
-                        text += " (#{product['original_price']} €)"
-                    end
+                    text = formatted_price_line(product)
 
                     win.addstr(text)
                     condition_row = price_row + 1
                     win.setpos(condition_row, description_start_x)
-                    win.addstr("Kunto:  #{product['condition']}")
+                    win.addstr("Kunto:  #{formatted_condition(product)}")
                 end
 
                 condition_row ||= 7
@@ -73,6 +75,53 @@ module Verkkis
         end
 
         private
+
+        def description_text(product, missing_favorite)
+            base = product['description'].to_s
+            note = "Tuote ei ole enää saatavilla. Näytetään suosikeista tallennettu tieto."
+
+            return note if missing_favorite && base.strip.empty?
+            return base unless missing_favorite
+
+            "#{base}\n\n#{note}"
+        end
+
+        def formatted_price_line(product)
+            current_price = normalize_numeric(product['price'])
+            original_price = normalize_numeric(product['original_price'])
+
+            text = if current_price
+                "Hinta:  #{format_price(current_price)} €"
+            else
+                "Hinta:  Ei hintaa"
+            end
+
+            if original_price
+                text += " (#{format_price(original_price)} €)"
+            end
+
+            text
+        end
+
+        def formatted_condition(product)
+            condition = product['condition'].to_s.strip
+            condition.empty? ? "-" : condition
+        end
+
+        def normalize_numeric(value)
+            return nil if value.nil?
+
+            number = if value.is_a?(Numeric)
+                value.to_f
+            elsif value.respond_to?(:to_s)
+                normalized = value.to_s.tr(",", ".")
+                Float(normalized)
+            end
+
+            number
+        rescue ArgumentError, TypeError
+            nil
+        end
 
         def normalize_price_history(history)
             return [] unless history.is_a?(Array)
