@@ -37,6 +37,7 @@ def main
 
     # Laita window.keypad päälle
     Curses.stdscr.keypad(true)
+    Curses.noecho
 
     begin
         data = Verkkis::Data.new
