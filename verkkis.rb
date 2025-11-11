@@ -208,8 +208,15 @@ def main
             favorite_products = favorites.get_favorites(original_products)
 
             # Text widths/positions
-            title_col_width = Config.max_cols - 12
-            price_col_start = title_col_width - 11
+            row_width = [Config.max_cols - 4, 20].max
+            column_gap = 2
+            min_title_width = 10
+            min_price_col_width = "▼ 1234 €".length
+            absolute_max_price_col_width = 28
+            price_col_start = 1
+            available_price_space = row_width - min_title_width - column_gap
+            max_price_col_width = [available_price_space, absolute_max_price_col_width].min
+            max_price_col_width = [max_price_col_width, min_price_col_width].max
             format_price = lambda do |value|
                 return "" if value.nil?
                 numeric = value.to_f
@@ -219,33 +226,6 @@ def main
                     numeric.round(2).to_s
                 end
             end
-            shorten_price_value = lambda do |value|
-                numeric = value.to_f
-                suffix = nil
-                divisor = 1.0
-
-                if numeric >= 1_000_000
-                    suffix = "M"
-                    divisor = 1_000_000.0
-                elsif numeric >= 10_000
-                    suffix = "k"
-                    divisor = 1_000.0
-                end
-
-                text = if suffix
-                    scaled = numeric / divisor
-                    precision = scaled >= 10 ? 0 : 1
-                    result = scaled.round(precision)
-                    str = result.to_s
-                    str = str.sub(/\.0$/, "")
-                    "#{str}#{suffix}"
-                else
-                    format_price.call(value)
-                end
-
-                text
-            end
-
             # No products
             if products.empty?
                 win.attron(Curses.color_pair(1)) do
@@ -257,47 +237,13 @@ def main
 
             if products.length > 0
                 visible_products = products[start_row, max_products] || []
+                price_text_limit = max_price_col_width
 
-                # List products
-                visible_products.each_with_index do |product, y|
-                    x = 1
-                    is_current_row = y == selection_position ? true : false
-
-                    # Product title
-                    title = product['name'][0, title_col_width - 10] + "..." if product['name'].length > title_col_width - 10
-                    title ||= product['name']
-
-                    # Product price
+                row_entries = visible_products.map do |product|
+                    title_name = product['name'].to_s
                     price = product['price']
+                    price_text = "#{format_price.call(price)} €"
 
-                    # Price text
-                    price_text = "#{price} €"
-
-                    # Set position
-                    win.setpos(y, 0)
-                    win.clrtoeol
-
-                    # Add star before favorite product title
-                    if (favorite_products.include?(product['id']))
-                        color = is_current_row ? 2 : 7
-
-                        win.attron(Curses.color_pair(color)) do
-                            win.setpos(y, x)
-                            win.addstr("★ ")
-                        end
-
-                        x = 3
-                    end
-
-                    # Product title
-                    color = is_current_row ? 2 : 1
-
-                    win.attron(Curses.color_pair(color)) do
-                        win.setpos(y, x)
-                        win.addstr(title.ljust(title_col_width))
-                    end
-
-                    # Previous price
                     price_history = data.get_product_price_history(product['id'])
                     price_diff = 0
                     previous_price = 0
@@ -306,21 +252,7 @@ def main
                         previous_price = product['price_drop_from']
                         current_price_for_drop = product['price_drop_to']
                         price_diff = product['price_drop']
-                        drop_percent = product['price_drop_percent'] || 0
-                        drop_percent_display = drop_percent.round
-                        shortened_previous = shorten_price_value.call(previous_price)
-                        shortened_current = shorten_price_value.call(current_price_for_drop)
-
-                        variants = [
-                            "#{format_price.call(previous_price)} → #{format_price.call(current_price_for_drop)} € (▼ #{drop_percent_display}%)",
-                            "#{format_price.call(previous_price)} → #{format_price.call(current_price_for_drop)} € (▼#{drop_percent_display}%)",
-                            "#{shortened_previous} → #{shortened_current} € (▼ #{drop_percent_display}%)",
-                            "#{shortened_previous} → #{shortened_current} € (▼#{drop_percent_display}%)",
-                            "#{shortened_previous} → #{shortened_current}€ (▼#{drop_percent_display}%)"
-                        ]
-
-                        price_text = variants.find { |text| text.length <= 20 } || variants.last[0, 20]
-                        price_text[-1] = ")" unless price_text.end_with?(")")
+                        price_text = "▼ #{format_price.call(current_price_for_drop)} €"
                     elsif price_history.length > 0
                         if price_history.length > 1
                             previous_price = price_history[-2]["price"]
@@ -330,12 +262,81 @@ def main
 
                         price_diff = previous_price - price
 
-                        if price_diff != 0
-                            if (price_diff > 0)
-                                price_text = "▼ #{previous_price} € → #{price} €"
-                            elsif (price_diff < 0)
-                                price_text = "▲ #{previous_price} € → #{price} €"
+                        if price_diff != 0 && price_diff < 0
+                            price_text = "▲ #{format_price.call(previous_price)} € → #{format_price.call(price)} €"
+                        end
+                    end
+
+                    if price_diff > 0
+                        price_text = "▼ #{format_price.call(price)} €"
+                    end
+
+                    price_text = price_text.gsub(".", ",")
+                    if price_text.length > price_text_limit
+                        price_text = price_text[-price_text_limit, price_text_limit]
+                    end
+
+                    {
+                        product: product,
+                        title_name: title_name,
+                        price_text: price_text,
+                        price_diff: price_diff
+                    }
+                end
+
+                max_price_text_length = row_entries.map { |entry| entry[:price_text].length }.max || 0
+                if max_price_text_length > min_price_col_width
+                    price_col_width = [min_price_col_width + 1, max_price_col_width].min
+                else
+                    price_col_width = min_price_col_width
+                end
+                title_col_start = price_col_start + price_col_width + column_gap
+                title_col_width = row_width - price_col_width - column_gap
+                title_col_width = 1 if title_col_width < 1
+
+                # List products
+                row_entries.each_with_index do |entry, y|
+                    product = entry[:product]
+                    title_name = entry[:title_name]
+                    price_text = entry[:price_text]
+                    price_diff = entry[:price_diff]
+                    title_x = title_col_start
+                    is_current_row = y == selection_position ? true : false
+
+                    # Set position
+                    win.setpos(y, 0)
+                    win.clrtoeol
+
+                    # Add star before favorite product title
+                    if favorite_products.include?(product['id']) && title_col_width >= 2
+                        color = is_current_row ? 2 : 7
+
+                        win.attron(Curses.color_pair(color)) do
+                            win.setpos(y, title_x)
+                            win.addstr("★ ")
+                        end
+
+                        title_x += 2
+                    end
+
+                    # Product title
+                    color = is_current_row ? 2 : 1
+
+                    remaining_title_width = title_col_width - (title_x - title_col_start)
+                    if remaining_title_width.positive?
+                        title_text = title_name.dup
+                        if title_text.length > remaining_title_width
+                            truncate_at = [remaining_title_width - 3, 0].max
+                            title_text = if truncate_at.positive?
+                                "#{title_text[0, truncate_at]}..."
+                            else
+                                title_text[0, remaining_title_width]
                             end
+                        end
+
+                        win.attron(Curses.color_pair(color)) do
+                            win.setpos(y, title_x)
+                            win.addstr(title_text.ljust(remaining_title_width))
                         end
                     end
 
@@ -351,11 +352,19 @@ def main
                     # Product price
                     win.attron(Curses.color_pair(color)) do
                         win.setpos(y, price_col_start)
+                        display_price_text = price_text
+                        if display_price_text.length > price_col_width
+                            display_price_text = display_price_text[-price_col_width, price_col_width]
+                        end
+                        win.addstr(display_price_text.rjust(price_col_width))
+                    end
 
-                        # Replace dots to commas in price text
-                        price_text = price_text.gsub(".", ",")
-
-                        win.addstr(price_text.to_s.rjust(20))
+                    gap_color = is_current_row ? 2 : 1
+                    if column_gap.positive?
+                        win.attron(Curses.color_pair(gap_color)) do
+                            win.setpos(y, price_col_start + price_col_width)
+                            win.addstr(" " * column_gap)
+                        end
                     end
                 end
             end
