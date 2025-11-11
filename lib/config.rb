@@ -13,6 +13,7 @@ module Config
         [
             { key: "E", label: "Etsi" },
             { key: ".", label: "Suosikki" },
+            { key: "T", label: "Tallenna hakusana" },
             { key: "A", label: "Avaa linkki" },
             { key: "P", label: "Päivitä" },
             { key: "Q", label: "Lopeta" }
