@@ -73,7 +73,7 @@ module Verkkis
 
                 key = win.getch
 
-                if key == "o"
+                if key == "o" || key == "a"
                     Launchy.open("https://www.verkkokauppa.com/fi/outlet/yksittaiskappaleet/#{product['id']}")
                 elsif key == "q" || key == 27 || key == Curses::Key::LEFT
                     break
