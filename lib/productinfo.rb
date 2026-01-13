@@ -24,6 +24,7 @@ module Verkkis
                 end
 
                 condition_row = nil
+                return_info_lines = []
 
                 win.attron(Curses.color_pair(5)) do
                     description_start_y = 3
@@ -48,10 +49,19 @@ module Verkkis
                     condition_row = price_row + 1
                     win.setpos(condition_row, description_start_x)
                     win.addstr("Kunto:  #{formatted_condition(product)}")
+
+                    return_info_text = formatted_return_info(product)
+                    if return_info_text
+                        return_info_lines = wrap_text_to_width("Palautus:  #{return_info_text}", description_width)
+                        return_info_lines.each_with_index do |line, index|
+                            win.setpos(condition_row + 1 + index, description_start_x)
+                            win.addstr(line)
+                        end
+                    end
                 end
 
                 condition_row ||= 7
-                link_row = condition_row + 2
+                link_row = condition_row + 2 + return_info_lines.length
 
                 win.attron(Curses.color_pair(6)) do
                     win.setpos(link_row, 3)
@@ -106,6 +116,11 @@ module Verkkis
         def formatted_condition(product)
             condition = product['condition'].to_s.strip
             condition.empty? ? "-" : condition
+        end
+
+        def formatted_return_info(product)
+            info = product['return_info'].to_s.strip
+            info.empty? ? nil : info
         end
 
         def normalize_numeric(value)
