@@ -169,10 +169,10 @@ module Verkkis
 
             clear_chart_area(win, chart_area_top, legend_row, chart_left - 2) # allow header clearing
 
-            if price_changes.length <= 1
+            if price_changes.empty?
                 win.attron(Curses.color_pair(5)) do
                     win.setpos(chart_body_top, chart_left)
-                    win.addstr(price_changes.empty? ? "Hintahistoria ei ole saatavilla." : "Ei hintamuutoksia.")
+                    win.addstr("Hintahistoria ei ole saatavilla.")
                 end
                 return
             end
