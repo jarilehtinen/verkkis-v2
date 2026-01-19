@@ -58,7 +58,6 @@ def main
         favorite_delete_keys = [127, 8]
         favorite_delete_keys << Curses::Key::BACKSPACE if defined?(Curses::Key::BACKSPACE)
         favorite_delete_keys << Curses::Key::DC if defined?(Curses::Key::DC)
-
         # Lines and cols
         Config.max_lines = Curses.lines
         Config.max_cols = Curses.cols
@@ -68,6 +67,60 @@ def main
 
         # Store products for resetting
         original_products = products.dup
+        header_entry = lambda do |entry|
+            entry.is_a?(Hash) && entry["_header"]
+        end
+        selectable_entry = lambda do |entry|
+            entry && !header_entry.call(entry)
+        end
+        find_next_selectable = lambda do |from_index|
+            idx = [from_index, 0].max
+            while idx < products.length
+                return idx if selectable_entry.call(products[idx])
+                idx += 1
+            end
+            nil
+        end
+        find_prev_selectable = lambda do |from_index|
+            idx = [from_index, products.length - 1].min
+            while idx >= 0
+                return idx if selectable_entry.call(products[idx])
+                idx -= 1
+            end
+            nil
+        end
+        normalize_selection = lambda do |max_products|
+            max_start_row = [products.length - max_products, 0].max
+            new_start_row = [[start_row, 0].max, max_start_row].min
+            new_selection_position = selection_position
+            new_current_product = current_product
+
+            if products.empty?
+                new_selection_position = 0
+                new_current_product = 0
+                return [new_start_row, new_selection_position, new_current_product]
+            end
+
+            new_current_product = [[new_current_product, 0].max, products.length - 1].min
+            unless selectable_entry.call(products[new_current_product])
+                next_index = find_next_selectable.call(new_current_product + 1)
+                next_index = find_prev_selectable.call(new_current_product - 1) if next_index.nil?
+                new_current_product = next_index if next_index
+            end
+
+            if new_current_product < new_start_row
+                new_start_row = new_current_product
+            elsif new_current_product >= new_start_row + max_products
+                new_start_row = new_current_product - max_products + 1
+            end
+
+            max_start_row = [products.length - max_products, 0].max
+            new_start_row = [[new_start_row, 0].max, max_start_row].min
+            new_selection_position = new_current_product - new_start_row
+            new_selection_position = 0 if new_selection_position.negative?
+
+            [new_start_row, new_selection_position, new_current_product]
+        end
 
         select_manufacturer = lambda do |fallback_title, capture_previous: false|
             fallback_title = fallback_title.to_s
@@ -255,6 +308,18 @@ def main
                 price_text_limit = max_price_col_width
 
                 row_entries = visible_products.map do |product|
+                    if header_entry.call(product)
+                        header_title = product["title"].to_s
+                        next {
+                            product: nil,
+                            title_name: header_title,
+                            price_text: "",
+                            price_diff: 0,
+                            missing_favorite: false,
+                            header: true
+                        }
+                    end
+
                     missing_favorite = product['missing_favorite']
                     title_name = product['name'].to_s
                     title_name = "Tuote ##{product['id']}" if title_name.strip.empty?
@@ -311,7 +376,8 @@ def main
                         title_name: title_name,
                         price_text: price_text,
                         price_diff: price_diff,
-                        missing_favorite: missing_favorite
+                        missing_favorite: missing_favorite,
+                        header: false
                     }
                 end
 
@@ -332,12 +398,32 @@ def main
                     price_text = entry[:price_text]
                     price_diff = entry[:price_diff]
                     missing_favorite = entry[:missing_favorite]
+                    is_header = entry[:header]
                     title_x = title_col_start
                     is_current_row = y == selection_position ? true : false
 
                     # Set position
                     win.setpos(y, 0)
                     win.clrtoeol
+
+                    if is_header
+                        remaining_title_width = row_width
+                        header_text = " #{title_name}"
+                        if header_text.length > remaining_title_width
+                            truncate_at = [remaining_title_width - 3, 0].max
+                            header_text = if truncate_at.positive?
+                                "#{header_text[0, truncate_at]}..."
+                            else
+                                header_text[0, remaining_title_width]
+                            end
+                        end
+
+                        win.attron(Curses.color_pair(6)) do
+                            win.setpos(y, 0)
+                            win.addstr(header_text.ljust(remaining_title_width))
+                        end
+                        next
+                    end
 
                     # Add star before favorite product title
                     if favorite_products.include?(product['id']) && title_col_width >= 2
@@ -427,12 +513,14 @@ def main
             case key
                 # Key up
                 when Curses::Key::UP
-                    if selection_position == 0 && start_row > 0
-                        start_row -= 1
-                        current_product -= 1
-                    elsif selection_position > 0
-                        selection_position -= 1
-                        current_product -= 1
+                    target_index = find_prev_selectable.call(current_product - 1)
+                    if target_index
+                        current_product = target_index
+                        if current_product < start_row
+                            start_row = current_product
+                        end
+                        selection_position = current_product - start_row
+                        selection_position = 0 if selection_position.negative?
                     end
 
                 # Key down
@@ -445,18 +533,13 @@ def main
                     visible_count = 0 if visible_count.negative?
                     next if visible_count.zero?
 
-                    next_index = current_product + 1
-
-                    if next_index < products.length
-                        if selection_position == visible_count - 1
-                            if start_row + visible_count < products.length
-                                start_row += 1
-                                current_product = next_index
-                            end
-                        elsif selection_position < visible_count - 1
-                            selection_position += 1
-                            current_product = next_index
+                    target_index = find_next_selectable.call(current_product + 1)
+                    if target_index
+                        current_product = target_index
+                        if current_product >= start_row + visible_count
+                            start_row = current_product - visible_count + 1
                         end
+                        selection_position = current_product - start_row
                     end
 
                 # Key home
@@ -499,15 +582,33 @@ def main
                     ui.draw("Tallennettujen hakujen tuotteet")
 
                     search = Verkkis::Searches.new
-                    searches = search.get_searches
+                    searches = search.get_searches || []
 
-                    # List all products having name matching the search term
-                    products = original_products.select { |product| searches.any? { |search| product['name'].downcase.include?(search.downcase) } }
+                    # List products grouped under each search term
+                    grouped_products = []
+                    added_first_header = false
+                    searches.each do |search_term|
+                        term = search_term.to_s
+                        next if term.strip.empty?
+                        term = term.sub(/\A(\p{L})/) { |match| match.upcase }
+
+                        matches = original_products.select do |product|
+                            name = product['name']
+                            next false unless name
+                            name.downcase.include?(term.downcase)
+                        end
+                        next if matches.empty?
+
+                        grouped_products << { "_header" => true, "title" => "" } if added_first_header
+                        grouped_products << { "_header" => true, "title" => term }
+                        matches.sort_by! { |product| product['name'].to_s }
+                        grouped_products.concat(matches)
+                        added_first_header = true
+                    end
+                    products = grouped_products
                     manufacturer_filter = nil
                     manufacturer_prev_state = nil
-
-                    # Sort by name
-                    products.sort_by! { |product| product['name'] }
+                    show = "saved_searches"
 
                     start_row = 0
                     selection_position = 0
@@ -883,6 +984,7 @@ def main
                 when "i", 10, Curses::Key::RIGHT
                     product_info = Verkkis::ProductInfo.new
                     selected_product = products[current_product]
+                    next unless selectable_entry.call(selected_product)
                     price_history = data.get_product_price_history(selected_product['id'])
                     product_info.view(ui, selected_product, price_history)
 
@@ -915,10 +1017,14 @@ def main
 
                 # Favorite item
                 when "."
-                    handle_favorite_toggle.call(products[current_product])
+                    current_entry = products[current_product]
+                    handle_favorite_toggle.call(current_entry) if selectable_entry.call(current_entry)
 
                 when *favorite_delete_keys
-                    handle_favorite_toggle.call(products[current_product]) if show == "favorites"
+                    current_entry = products[current_product]
+                    if show == "favorites" && selectable_entry.call(current_entry)
+                        handle_favorite_toggle.call(current_entry)
+                    end
 
                 # Save search
                 when "t"
@@ -929,6 +1035,7 @@ def main
                 # Open product page in browser
                 when "a"
                     product = products[current_product]
+                    next unless selectable_entry.call(product)
                     Launchy.open("https://www.verkkokauppa.com/fi/outlet/yksittaiskappaleet/#{product['id']}")
 
                 # Escape
@@ -969,23 +1076,7 @@ def main
             end
 
             # Keep paging bounds sane after handling input
-            max_start_row = [products.length - max_products, 0].max
-            start_row = [[start_row, 0].max, max_start_row].min
-
-            visible_count = [products.length - start_row, max_products].min
-            visible_count = 0 if visible_count.negative?
-
-            if visible_count.zero?
-                selection_position = 0
-                current_product = 0
-            else
-                selection_position = [[selection_position, 0].max, visible_count - 1].min
-                current_product = start_row + selection_position
-                if current_product >= products.length
-                    current_product = products.length - 1
-                    selection_position = [current_product - start_row, 0].max
-                end
-            end
+            start_row, selection_position, current_product = normalize_selection.call(max_products)
         end
     ensure
         Curses.close_screen
