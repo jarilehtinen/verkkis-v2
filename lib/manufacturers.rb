@@ -17,18 +17,22 @@ module Verkkis
             col_width = [manufacturers.map(&:length).max || 0, 20].max
             max_col_width = [window_width - 2, 1].max
             col_width = [col_width, max_col_width].min
+            columns_per_page = [((window_width - 2) / (col_width + col_padding)), 1].max
 
             win = Curses::Window.new(window_height, window_width, 1, 1)
             win.erase
 
             loop do
                 win.erase
+                current_col = current_manufacturer / max_rows
+                start_col = [current_col - (columns_per_page - 1), 0].max
 
                 manufacturers.each_with_index do |manufacturer, index|
                     row = index % max_rows
                     col = index / max_rows
-                    x_pos = 1 + col * (col_width + col_padding)
-                    break if x_pos + col_width >= window_width
+                    next if col < start_col
+                    break if col >= start_col + columns_per_page
+                    x_pos = 1 + (col - start_col) * (col_width + col_padding)
 
                     color = (index == current_manufacturer) ? 2 : 1
 
