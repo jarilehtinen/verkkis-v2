@@ -172,4 +172,78 @@ module Verkkis
             }
         end
     end
+
+    class ManufacturerFavorites
+        attr_reader :favorites
+
+        def initialize
+            @favorites = nil
+        end
+
+        def get_file_path
+            File.join(File.expand_path("..", __dir__), ".data/manufacturer_favorites.json")
+        end
+
+        def get_favorites
+            load_favorites.dup
+        end
+
+        def favorite_manufacturer(name)
+            normalized = normalize_name(name)
+            return unless normalized
+
+            entries = load_favorites
+            if entries.include?(normalized)
+                entries.delete(normalized)
+            else
+                entries << normalized
+            end
+
+            @favorites = entries
+            save_data
+        end
+
+        private
+
+        def load_favorites
+            return @favorites if @favorites.is_a?(Array)
+
+            file_path = get_file_path
+            favorites = if File.exist?(file_path)
+                JSON.parse(File.read(file_path))
+            else
+                []
+            end
+
+            @favorites = normalize_entries(favorites)
+        rescue StandardError => e
+            Curses.setpos(Curses.lines - 1, 0)
+            Curses.addstr("Error while reading manufacturer favorites: #{e.message}")
+            Curses.refresh
+            exit
+        end
+
+        def save_data
+            @favorites ||= []
+            File.write(get_file_path, JSON.pretty_generate(@favorites))
+        rescue StandardError => e
+            Curses.setpos(Curses.lines - 1, 0)
+            Curses.addstr("Error while saving manufacturer favorites: #{e.message}")
+            Curses.refresh
+            exit
+        end
+
+        def normalize_entries(raw_entries)
+            Array(raw_entries).map { |item| normalize_name(item) }.compact.uniq
+        end
+
+        def normalize_name(name)
+            return nil unless name
+
+            normalized = name.to_s.strip
+            return nil if normalized.empty?
+
+            normalized
+        end
+    end
 end

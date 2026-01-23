@@ -42,6 +42,7 @@ def main
     begin
         data = Verkkis::Data.new
         favorites = Verkkis::Favorites.new
+        manufacturer_favorites = Verkkis::ManufacturerFavorites.new
         ui = Verkkis::UI.new
 
         # Variables
@@ -142,7 +143,10 @@ def main
             end
 
             manufacturers = Verkkis::Manufacturers.new
-            selected_manufacturer = manufacturers.list(ui, original_products)
+            selected_manufacturer, forwarded_key = manufacturers.list(ui, original_products, manufacturer_favorites)
+            if forwarded_key
+                pending_key = forwarded_key
+            end
 
             title_to_draw = nil
 
