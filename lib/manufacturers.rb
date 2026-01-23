@@ -32,10 +32,16 @@ module Verkkis
             win = Curses::Window.new(window_height, window_width, 1, 1)
             win.erase
 
+            start_col = 0
+
             loop do
                 win.erase
                 current_col = current_manufacturer / max_rows
-                start_col = [current_col - (columns_per_page - 1), 0].max
+                if current_col < start_col
+                    start_col = current_col
+                elsif current_col >= start_col + columns_per_page
+                    start_col = current_col - columns_per_page + 1
+                end
 
                 manufacturers.each_with_index do |manufacturer, index|
                     row = index % max_rows

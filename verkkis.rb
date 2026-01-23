@@ -268,13 +268,43 @@ def main
 
             # Get favorites
             favorite_products = favorites.get_favorites(original_products)
+            build_favorites_view = lambda do
+                grouped_products = []
+                favorite_products_list = favorites.get_favorites(original_products)
+                favorite_entries = favorites.resolved_favorite_products(original_products)
+
+                if favorite_entries.any?
+                    grouped_products << { "_header" => true, "title" => "Suosikit" }
+                    grouped_products.concat(favorite_entries)
+                end
+
+                added_first_header = grouped_products.any?
+                manufacturer_favorites_list = manufacturer_favorites.get_favorites
+                manufacturer_favorites_list.sort.each do |manufacturer|
+                    matches = original_products.select do |product|
+                        name = product['name']
+                        next false unless name
+                        name.split(/\s/).first == manufacturer
+                    end
+                    next if matches.empty?
+
+                    grouped_products << { "_header" => true, "title" => "" } if added_first_header
+                    grouped_products << { "_header" => true, "title" => manufacturer }
+                    matches.sort_by! { |product| product['name'].to_s }
+                    grouped_products.concat(matches)
+                    added_first_header = true
+                end
+
+                [grouped_products, favorite_products_list]
+            end
             handle_favorite_toggle = lambda do |target_product|
                 next unless target_product
 
                 favorites.favorite_product(target_product)
-                favorite_products = favorites.get_favorites(original_products)
                 if show == "favorites"
-                    products = favorites.resolved_favorite_products(original_products)
+                    products, favorite_products = build_favorites_view.call
+                else
+                    favorite_products = favorites.get_favorites(original_products)
                 end
                 ui.draw("")
             end
@@ -622,8 +652,7 @@ def main
                 when "3"
                     ui.draw("Suosikit")
 
-                    favorite_products = favorites.get_favorites(original_products)
-                    products = favorites.resolved_favorite_products(original_products)
+                    products, favorite_products = build_favorites_view.call
 
                     show = "favorites"
                     manufacturer_filter = nil
