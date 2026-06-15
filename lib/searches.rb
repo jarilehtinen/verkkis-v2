@@ -7,7 +7,7 @@ module Verkkis
 
         # Get file path
         def get_file_path
-            File.join(File.expand_path("..", __dir__), ".data/searches.json")
+            Verkkis.data_path("searches.json")
         end
 
         # Get the searches list located in .data/searches.json
@@ -37,10 +37,7 @@ module Verkkis
         def save_searches
             File.write(get_file_path, JSON.pretty_generate(@searches))
         rescue StandardError => e
-            Curses.setpos(Curses.lines - 1, 0)
-            Curses.addstr("Error while saving search: #{e.message}")
-            Curses.refresh
-            exit
+            Verkkis.abort_with_message("Error while saving search: #{e.message}")
         end
 
         # Delete search

@@ -8,6 +8,14 @@ Huom! Tein tämän projektin opetellakseni Ruby-ohjelmointia, ja siltä se kielt
 
 ## Asennus
 
+Bundlerilla (suositeltu):
+
+```shell
+bundle install
+```
+
+Tai suoraan:
+
 ```shell
 gem install curses launchy
 ```
@@ -15,6 +23,8 @@ gem install curses launchy
 ## Käyttäminen
 
 ```shell
+bundle exec ruby verkkis.rb
+# tai ilman bundleria
 ruby verkkis.rb
 ````
 

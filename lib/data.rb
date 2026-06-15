@@ -35,20 +35,20 @@ module Verkkis
 
         # Get file path
         def get_file_path
-            File.join(File.expand_path("..", __dir__), ".data/data.json")
+            Verkkis.data_path("data.json")
         end
 
         def get_debug_log_path
-            File.join(File.expand_path("..", __dir__), ".data/debug.log")
+            Verkkis.data_path("debug.log")
         end
 
         def get_error_log_path
-            File.join(File.expand_path("..", __dir__), ".data/error.log")
+            Verkkis.data_path("error.log")
         end
 
         # Get price history file path
         def get_price_history_file_path
-            File.join(File.expand_path("..", __dir__), ".data/price_history.json")
+            Verkkis.data_path("price_history.json")
         end
 
         # Get products
@@ -60,10 +60,7 @@ module Verkkis
             end
         rescue StandardError => e
             error_log("Error while reading data from disk: #{e.message}\n#{e.backtrace.join("\n")}")
-            Curses.setpos(Curses.lines - 1, 0)
-            Curses.addstr("Error while reading data from disk! #{e.message}")
-            Curses.refresh
-            exit
+            Verkkis.abort_with_message("Error while reading data from disk! #{e.message}")
         end
 
         # Get product price history
@@ -137,6 +134,7 @@ module Verkkis
                 exit
             end
 
+
             # Get all data
             page = 0
 
@@ -174,10 +172,7 @@ module Verkkis
         rescue StandardError => e
             error_log("Error during update: #{e.message}\n#{e.backtrace.join("\n")}")
             debug_log("Error during update: #{e.message}\n#{e.backtrace.join("\n")}")
-            Curses.setpos(Curses.lines - 1, 0)
-            Curses.addstr("Error during update: #{e.message}")
-            Curses.refresh
-            exit
+            Verkkis.abort_with_message("Error during update: #{e.message}")
         end
 
         private
@@ -189,20 +184,13 @@ module Verkkis
         rescue StandardError => e
             error_log("Error while saving data: #{e.message}\n#{e.backtrace.join("\n")}")
             debug_log("Error while saving data: #{e.message}\n#{e.backtrace.join("\n")}")
-            Curses.setpos(Curses.lines - 1, 0)
-            Curses.addstr("Error while saving data: #{e.message}")
-            Curses.refresh
-            exit
+            Verkkis.abort_with_message("Error while saving data: #{e.message}")
         end
 
         # Save price history
         def save_price_history
-            # Load existing price history or initialize an empty hash
-            price_history = if File.exist?(get_price_history_file_path)
-                JSON.parse(File.read(get_price_history_file_path))
-            else
-                {}
-            end
+            # Reuse the price history loaded at initialization
+            price_history = @price_history
 
             # Collect IDs of currently available products
             current_product_ids = @products.map { |product| product[:id] }
@@ -247,9 +235,7 @@ module Verkkis
             if data["message"]
                 debug_log("API returned message for #{uri}: #{data['message']}")
                 error_log("API returned error for #{uri}: #{data['message']}")
-                Curses.setpos(Curses.lines - 1, 0)
-                Curses.addstr("Error while getting data: #{data["message"]}")
-                Curses.refresh
+                Verkkis.show_message("Error while getting data: #{data["message"]}")
                 return nil
             end
 
@@ -262,16 +248,12 @@ module Verkkis
                 error_log(note)
                 debug_log(note)
             end
-            Curses.setpos(Curses.lines - 1, 0)
-            Curses.addstr("HTTP error: #{e.message}")
-            Curses.refresh
+            Verkkis.show_message("HTTP error: #{e.message}")
             nil
         rescue StandardError => e
             error_log("HTTP error when fetching #{url}: #{e.message}\n#{e.backtrace.join("\n")}")
             debug_log("HTTP error when fetching #{url}: #{e.message}\n#{e.backtrace.join("\n")}")
-            Curses.setpos(Curses.lines - 1, 0)
-            Curses.addstr("HTTP error: #{e.message}")
-            Curses.refresh
+            Verkkis.show_message("HTTP error: #{e.message}")
             nil
         end
 
@@ -288,9 +270,7 @@ module Verkkis
             else
                 error_log("numPages missing in response for #{url}")
                 debug_log("numPages missing in response for #{url}")
-                Curses.setpos(Curses.lines - 1, 0)
-                Curses.addstr("Missing total page count from response!")
-                Curses.refresh
+                Verkkis.show_message("Missing total page count from response!")
                 nil
             end
         end

@@ -11,7 +11,7 @@ module Verkkis
 
         # Get file path
         def get_file_path
-            File.join(File.expand_path("..", __dir__), ".data/favorites.json")
+            Verkkis.data_path("favorites.json")
         end
 
         # Get the favorites list located in .data/favorites.json
@@ -33,10 +33,7 @@ module Verkkis
             @favorites ||= []
             File.write(get_file_path, JSON.pretty_generate(@favorites))
         rescue StandardError => e
-            Curses.setpos(Curses.lines - 1, 0)
-            Curses.addstr("Error while saving data: #{e.message}")
-            Curses.refresh
-            exit
+            Verkkis.abort_with_message("Error while saving data: #{e.message}")
         end
 
         # Favorite product
@@ -181,7 +178,7 @@ module Verkkis
         end
 
         def get_file_path
-            File.join(File.expand_path("..", __dir__), ".data/manufacturer_favorites.json")
+            Verkkis.data_path("manufacturer_favorites.json")
         end
 
         def get_favorites
@@ -217,20 +214,14 @@ module Verkkis
 
             @favorites = normalize_entries(favorites)
         rescue StandardError => e
-            Curses.setpos(Curses.lines - 1, 0)
-            Curses.addstr("Error while reading manufacturer favorites: #{e.message}")
-            Curses.refresh
-            exit
+            Verkkis.abort_with_message("Error while reading manufacturer favorites: #{e.message}")
         end
 
         def save_data
             @favorites ||= []
             File.write(get_file_path, JSON.pretty_generate(@favorites))
         rescue StandardError => e
-            Curses.setpos(Curses.lines - 1, 0)
-            Curses.addstr("Error while saving manufacturer favorites: #{e.message}")
-            Curses.refresh
-            exit
+            Verkkis.abort_with_message("Error while saving manufacturer favorites: #{e.message}")
         end
 
         def normalize_entries(raw_entries)

@@ -1,7 +1,6 @@
 module Verkkis
     class UI
         HELP_KEY_COLOR_PAIR = 11
-        last_title = ""
 
         def current_title
             @last_title
